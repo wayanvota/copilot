@@ -52,15 +52,16 @@ Set `NEXT_PUBLIC_API_BASE_URL` to the Render API URL. For a static production bu
 npm run build
 ```
 
-Upload the contents of `frontend/out/` to the target directory on wayan.com.
+Upload the contents of `frontend/out/` to `wayan.com/copilot/`.
 
 ## Production setup
 
 1. Create a Neon Postgres database and enable the `vector` extension.
 2. Create the Render service from `render.yaml`.
 3. Set `DATABASE_URL`, `OPENAI_API_KEY`, `CORS_ORIGINS`, and `ADMIN_API_KEY` in Render.
-4. Run the Render pre-deploy command to migrate and seed the approved starter corpus.
-5. Build the frontend with the final Render URL and upload `frontend/out/` by FTP.
+4. Run the Render pre-deploy command to migrate the database.
+5. After separately approving OpenAI embedding charges, run `python -m app.ingest --seed-if-empty` once to seed the approved starter corpus.
+6. Build the frontend with the final Render URL and upload `frontend/out/` by FTP.
 
 No API key is ever shipped to the browser.
 

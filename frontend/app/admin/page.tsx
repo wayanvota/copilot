@@ -29,7 +29,7 @@ export default function AdminPage() {
 
   return (
     <main className="admin-page">
-      <a href="/" className="back-link"><ArrowLeft size={16} /> Back to copilot</a>
+      <a href="/copilot/" className="back-link"><ArrowLeft size={16} /> Back to copilot</a>
       <p className="eyebrow orange">Private operations view</p>
       <h1>Compliance signal desk</h1>
       <p>Monitor source coverage and questions that the evidence system could not safely answer.</p>

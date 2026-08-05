@@ -31,7 +31,6 @@ def _cosine(a: list[float], b: list[float]) -> float:
 
 
 def hybrid_search(db: Session, question: str, source_tiers: list[int], topics: list[str]) -> list[RetrievedChunk]:
-    query_embedding = embed_texts([question])[0]
     statement = (
         select(Chunk)
         .join(Chunk.document)
@@ -41,6 +40,10 @@ def hybrid_search(db: Session, question: str, source_tiers: list[int], topics: l
     if topics:
         statement = statement.where(Document.topic.in_(topics))
     candidates = db.scalars(statement.limit(1200)).all()
+    if not candidates:
+        return []
+
+    query_embedding = embed_texts([question])[0]
     question_tokens = _tokens(question)
     ranked: list[RetrievedChunk] = []
     for chunk in candidates:

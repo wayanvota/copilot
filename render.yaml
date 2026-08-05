@@ -5,7 +5,7 @@ services:
     rootDir: backend
     plan: starter
     buildCommand: pip install -r requirements.txt
-    preDeployCommand: alembic upgrade head && python -m app.ingest --seed-if-empty
+    preDeployCommand: alembic upgrade head
     startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
     healthCheckPath: /healthz
     envVars:
@@ -22,6 +22,8 @@ services:
       - key: CORS_ORIGINS
         value: https://wayan.com
       - key: ADMIN_API_KEY
+        generateValue: true
+      - key: APP_ACCESS_TOKEN
         generateValue: true
       - key: ENVIRONMENT
         value: production

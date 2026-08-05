@@ -29,7 +29,7 @@ app.add_middleware(
     allow_origins=settings.allowed_origins,
     allow_credentials=False,
     allow_methods=["GET", "POST", "OPTIONS"],
-    allow_headers=["Content-Type", "X-Admin-Key"],
+    allow_headers=["Content-Type", "Authorization", "X-Admin-Key"],
 )
 
 request_windows: dict[str, deque[float]] = defaultdict(deque)
@@ -59,6 +59,14 @@ def require_admin(x_admin_key: str | None = Header(default=None)) -> None:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid admin key")
 
 
+def require_app_access(authorization: str | None = Header(default=None)) -> None:
+    if not settings.app_access_token:
+        return
+    expected = f"Bearer {settings.app_access_token}"
+    if authorization != expected:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Valid producer access code required")
+
+
 @app.exception_handler(Exception)
 async def unhandled_error(_: Request, exc: Exception):
     return JSONResponse(status_code=500, content={"detail": "The service could not complete this request safely."})
@@ -74,7 +82,7 @@ def health(db: Session = Depends(get_db)):
         raise HTTPException(status_code=503, detail="Database unavailable")
 
 
-@app.post("/api/chat", response_model=ChatResponse)
+@app.post("/api/chat", response_model=ChatResponse, dependencies=[Depends(require_app_access)])
 def chat(request: ChatRequest, db: Session = Depends(get_db)):
     if len(request.question) > settings.max_question_chars:
         raise HTTPException(status_code=422, detail=f"Question must be under {settings.max_question_chars} characters.")
@@ -98,7 +106,7 @@ def sources(db: Session = Depends(get_db)):
     ]
 
 
-@app.post("/api/feedback", response_model=SavedResponse, status_code=201)
+@app.post("/api/feedback", response_model=SavedResponse, status_code=201, dependencies=[Depends(require_app_access)])
 def feedback(request: FeedbackRequest, db: Session = Depends(get_db)):
     record = Feedback(answer_id=request.answer_id, rating=request.rating, comment=request.comment)
     db.add(record)
@@ -106,7 +114,7 @@ def feedback(request: FeedbackRequest, db: Session = Depends(get_db)):
     return SavedResponse(id=record.id)
 
 
-@app.post("/api/bookmarks", response_model=SavedResponse, status_code=201)
+@app.post("/api/bookmarks", response_model=SavedResponse, status_code=201, dependencies=[Depends(require_app_access)])
 def bookmarks(request: BookmarkRequest, db: Session = Depends(get_db)):
     record = Bookmark(answer_id=request.answer_id)
     db.add(record)
@@ -114,7 +122,7 @@ def bookmarks(request: BookmarkRequest, db: Session = Depends(get_db)):
     return SavedResponse(id=record.id)
 
 
-@app.get("/api/conversations/{conversation_id}", response_model=ConversationResponse)
+@app.get("/api/conversations/{conversation_id}", response_model=ConversationResponse, dependencies=[Depends(require_app_access)])
 def conversation(conversation_id: str, db: Session = Depends(get_db)):
     record = db.get(Conversation, conversation_id)
     if record is None:

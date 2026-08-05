@@ -17,6 +17,7 @@ class Settings(BaseSettings):
     openai_reasoning_effort: str = "low"
     cors_origins: str = "http://localhost:3000"
     admin_api_key: str = ""
+    app_access_token: str = ""
     retrieval_limit: int = Field(default=8, ge=3, le=15)
     max_question_chars: int = Field(default=2000, ge=200, le=10000)
 
