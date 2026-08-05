@@ -34,9 +34,9 @@ button { color: inherit; }
 
 .topbar { height: 76px; padding: 0 28px; border-bottom: 1px solid var(--oat); display: flex; align-items: center; justify-content: space-between; background: var(--white); position: sticky; top: 0; z-index: 20; }
 .brand { display: flex; align-items: center; gap: 10px; text-decoration: none; color: var(--ink); min-width: 238px; }
-.brand-mark { width: 38px; height: 38px; background: var(--ink); color: var(--white); display: grid; place-items: center; border-radius: 4px; font-weight: 800; font-size: 13px; letter-spacing: .8px; }
+.brand-mark { width: 38px; height: 38px; flex: 0 0 38px; background: var(--ink); color: var(--white); display: grid; place-items: center; border-radius: 4px; font-weight: 800; font-size: 13px; letter-spacing: .8px; }
 .brand > span:last-child { display: flex; flex-direction: column; line-height: 1.05; }
-.brand strong { font-size: 17px; letter-spacing: -.2px; }
+.brand strong { font-size: 17px; letter-spacing: -.2px; white-space: nowrap; }
 .brand small { color: var(--faint); font-size: 11px; letter-spacing: .7px; text-transform: uppercase; margin-top: 3px; }
 .topbar nav { display: flex; gap: 28px; }
 .topbar nav a { color: var(--ink-80); font-size: 14px; text-decoration: none; }
@@ -66,11 +66,11 @@ button { color: inherit; }
 .check-row small { color: var(--faint); font-family: ui-monospace, monospace; font-size: 10px; }
 .sidebar-note { font-size: 11px; color: var(--faint); line-height: 1.45; margin-top: 18px; }
 
-.chat { background: var(--white); min-width: 0; }
+.chat { background: var(--white); min-width: 0; width: 100%; }
 .welcome { min-height: calc(100vh - 76px); padding: 9vh clamp(32px, 7vw, 100px) 48px; display: flex; flex-direction: column; align-items: flex-start; }
-.welcome h1 { font-size: clamp(54px, 7vw, 94px); line-height: .94; font-weight: 400; letter-spacing: clamp(-3px, -.04em, -1.5px); margin: 10px 0 28px; }
+.welcome h1 { width: 100%; font-size: clamp(54px, 7vw, 94px); line-height: .94; font-weight: 400; letter-spacing: clamp(-3px, -.04em, -1.5px); margin: 10px 0 28px; }
 .welcome h1 span { color: var(--faint); }
-.lede { font-size: 18px; line-height: 1.5; color: var(--muted); max-width: 660px; margin: 0 0 32px; }
+.lede { width: 100%; font-size: 18px; line-height: 1.5; color: var(--muted); max-width: 660px; margin: 0 0 32px; }
 .ask-box { width: min(820px, 100%); display: grid; grid-template-columns: 24px 1fr 48px; gap: 12px; align-items: start; border: 1px solid var(--ink); border-radius: 8px; padding: 18px; background: var(--cream); }
 .ask-box > svg { margin-top: 4px; }
 .ask-box textarea { resize: none; border: 0; outline: 0; background: transparent; color: var(--ink); font-size: 18px; line-height: 1.45; min-height: 78px; }
