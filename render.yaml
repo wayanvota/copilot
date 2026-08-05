@@ -1,0 +1,27 @@
+services:
+  - type: web
+    name: iowa-pork-copilot-api
+    runtime: python
+    rootDir: backend
+    plan: starter
+    buildCommand: pip install -r requirements.txt
+    preDeployCommand: alembic upgrade head && python -m app.ingest --seed-if-empty
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /healthz
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.11
+      - key: DATABASE_URL
+        sync: false
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: OPENAI_CHAT_MODEL
+        value: gpt-5.6-terra
+      - key: OPENAI_EMBEDDING_MODEL
+        value: text-embedding-3-large
+      - key: CORS_ORIGINS
+        value: https://wayan.com
+      - key: ADMIN_API_KEY
+        generateValue: true
+      - key: ENVIRONMENT
+        value: production
