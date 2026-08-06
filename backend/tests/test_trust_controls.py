@@ -87,6 +87,14 @@ def test_manual_chapter_459_is_complete_current_code():
     assert len(text) > 150_000
 
 
+def test_every_registered_manual_pdf_has_extractable_text():
+    manual_sources = [source for source in APPROVED_SOURCES if source.get("manual_path")]
+    assert len(manual_sources) >= 20
+    for source in manual_sources:
+        text = read_manual_source(source["manual_path"])
+        assert len(text) > 200, source["title"]
+
+
 def test_manual_source_replaces_existing_chunks_without_ordinal_collision(tmp_path, monkeypatch):
     engine = create_engine(f"sqlite:///{tmp_path / 'replacement.sqlite3'}")
     TestingSession = sessionmaker(bind=engine)
