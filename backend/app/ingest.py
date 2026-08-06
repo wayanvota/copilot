@@ -100,6 +100,15 @@ def ingest_source(db: Session, source: dict) -> str:
 
     content_hash = hashlib.sha256(content.encode("utf-8")).hexdigest()
     document = db.scalar(select(Document).where(Document.url == source["url"]))
+    previous_urls = source.get("previous_urls", [])
+    previous_documents = list(db.scalars(select(Document).where(Document.url.in_(previous_urls)))) if previous_urls else []
+    if document is None and previous_documents:
+        document = previous_documents.pop(0)
+        document.url = source["url"]
+    for previous_document in previous_documents:
+        db.delete(previous_document)
+    if previous_documents:
+        db.flush()
     if document and document.content_hash == content_hash:
         return "unchanged"
 

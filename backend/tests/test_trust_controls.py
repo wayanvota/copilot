@@ -110,3 +110,26 @@ def test_manual_source_replaces_existing_chunks_without_ordinal_collision(tmp_pa
         assert db.scalar(select(func.count(func.distinct(Chunk.ordinal))).where(Chunk.document_id == document.id)) == db.scalar(
             select(func.count(Chunk.id)).where(Chunk.document_id == document.id)
         )
+
+
+def test_previous_source_url_is_consolidated(tmp_path, monkeypatch):
+    engine = create_engine(f"sqlite:///{tmp_path / 'aliases.sqlite3'}")
+    TestingSession = sessionmaker(bind=engine)
+    Base.metadata.create_all(engine)
+    source = next(item for item in APPROVED_SOURCES if item["title"].startswith("Spill Reporting Guidance"))
+    monkeypatch.setattr("app.ingest.embed_texts", lambda texts: [[0.0] * 1024 for _ in texts])
+
+    with TestingSession() as db:
+        for url in [source["url"], source["previous_urls"][0]]:
+            db.add(Document(
+                title=source["title"], agency=source["agency"], url=url,
+                jurisdiction="Iowa", topic="manure", source_tier=1,
+                document_type="official guidance", content_hash="old",
+            ))
+        db.commit()
+
+        ingest_source(db, source)
+        db.commit()
+        documents = list(db.scalars(select(Document).where(Document.title == source["title"])))
+        assert len(documents) == 1
+        assert documents[0].url == source["url"]
