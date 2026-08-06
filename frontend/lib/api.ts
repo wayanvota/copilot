@@ -3,10 +3,8 @@ import type { CopilotAnswer } from "./types";
 const API_BASE_URL = (process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000").replace(/\/$/, "");
 
 function headers(): HeadersInit {
-  const accessToken = typeof window !== "undefined" ? sessionStorage.getItem("copilot_access_token") : null;
   return {
     "Content-Type": "application/json",
-    ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
   };
 }
 

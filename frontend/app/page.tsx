@@ -159,24 +159,11 @@ export default function Home() {
   const [error, setError] = useState<string>();
   const [mobileNav, setMobileNav] = useState(false);
   const [sourceTiers, setSourceTiers] = useState<number[]>([1, 2]);
-  const [accessCode, setAccessCode] = useState("");
-  const [hasAccessCode, setHasAccessCode] = useState(false);
   const endRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    setHasAccessCode(Boolean(sessionStorage.getItem("copilot_access_token")));
-  }, []);
-  useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, loading]);
-
-  function unlock(event: FormEvent) {
-    event.preventDefault();
-    if (!accessCode.trim()) return;
-    sessionStorage.setItem("copilot_access_token", accessCode.trim());
-    setAccessCode("");
-    setHasAccessCode(true);
-  }
 
   async function submit(event?: FormEvent, starter?: string) {
     event?.preventDefault();
@@ -199,19 +186,6 @@ export default function Home() {
 
   return (
     <main>
-      {!hasAccessCode && (
-        <div className="access-gate" role="dialog" aria-modal="true" aria-labelledby="access-title">
-          <form onSubmit={unlock}>
-            <span className="brand-mark">IA</span>
-            <p className="eyebrow orange">Private MVP access</p>
-            <h1 id="access-title">Iowa Pork<br />Compliance Copilot</h1>
-            <p>Enter the producer access code to use the evidence-backed assistant.</p>
-            <label htmlFor="access-code">Access code</label>
-            <div><input id="access-code" type="password" value={accessCode} onChange={(event) => setAccessCode(event.target.value)} autoComplete="off" autoFocus /><button disabled={!accessCode.trim()}>Continue</button></div>
-            <small>This pilot provides compliance preparation, not legal or veterinary advice.</small>
-          </form>
-        </div>
-      )}
       <header className="topbar">
         <a className="brand" href="#top" aria-label="Iowa Pork Compliance Copilot home">
           <span className="brand-mark">IA</span>
