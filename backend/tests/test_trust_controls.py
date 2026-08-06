@@ -196,3 +196,57 @@ def test_query_expansion_uses_canonical_terms_for_known_producer_phrasing():
     foam_query, _ = _expand_query("What should I do before pumping a foaming manure pit?")
     assert "evacuate extinguish" in foam_query
     assert "hydrogen sulfide" in foam_query
+
+
+def test_query_intent_prioritizes_the_relevant_page_inside_long_authorities(tmp_path, monkeypatch):
+    engine = create_engine(f"sqlite:///{tmp_path / 'page-ranking.sqlite3'}")
+    TestingSession = sessionmaker(bind=engine)
+    Base.metadata.create_all(engine)
+    monkeypatch.setattr("app.retrieval.embed_texts", lambda texts: [[0.0] * 1024 for _ in texts])
+
+    with TestingSession() as db:
+        reportable = Document(
+            title="Iowa Administrative Code Rule 21-64.1", agency="Iowa Legislature",
+            url="https://www.legis.iowa.gov/reportable", jurisdiction="Iowa", topic="animal_health", source_tier=1,
+            document_type="administrative rule", content_hash="reportable",
+        )
+        distances = Document(
+            title="DNR Form 542-1420", agency="Iowa DNR",
+            url="https://www.iowadnr.gov/distances", jurisdiction="Iowa", topic="permits", source_tier=1,
+            document_type="official form", content_hash="distances",
+        )
+        db.add_all([reportable, distances])
+        db.flush()
+        db.add_all([
+            Chunk(
+                document_id=reportable.id, ordinal=0, content="Other animal diseases and general reporting duties.",
+                token_count=8, embedding=[0.0] * 1024,
+            ),
+            Chunk(
+                document_id=reportable.id, ordinal=1,
+                content="The swine list includes porcine reproductive and respiratory syndrome.",
+                token_count=10, embedding=[0.0] * 1024,
+            ),
+            Chunk(
+                document_id=distances.id, ordinal=0,
+                content="Table 6-C applies to old swine operations constructed before January 1, 1999.",
+                token_count=12, embedding=[0.0] * 1024,
+            ),
+            Chunk(
+                document_id=distances.id, ordinal=1,
+                content="Table 6 minimum separation distances for operations constructed on or after March 1, 2003.",
+                token_count=14, embedding=[0.0] * 1024,
+            ),
+        ])
+        db.commit()
+
+        prrs_results = hybrid_search(db, "Is PRRS reportable in Iowa?", [1], ["animal_health"])
+        assert "porcine reproductive" in prrs_results[0].chunk.content.lower()
+
+        distance_results = hybrid_search(
+            db,
+            "What separation distances apply to a new confinement barn and neighbors?",
+            [1],
+            ["permits"],
+        )
+        assert "on or after march 1, 2003" in distance_results[0].chunk.content.lower()
