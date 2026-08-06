@@ -67,8 +67,6 @@ button { color: inherit; }
 .saved-list button:hover { background: #f0eee9; }
 
 .chat { background: var(--white); min-width: 0; width: 100%; }
-.emergency-banner { display: flex; gap: 10px; align-items: flex-start; padding: 11px clamp(24px, 6vw, 86px); border-bottom: 1px solid #e9cba2; background: #fff8e8; color: #67420c; font-size: 12px; line-height: 1.45; }
-.emergency-banner svg { flex: 0 0 auto; margin-top: 1px; }
 .welcome { min-height: calc(100vh - 76px); padding: 9vh clamp(32px, 7vw, 100px) 48px; display: flex; flex-direction: column; align-items: flex-start; }
 .welcome h1 { width: 100%; font-size: clamp(54px, 7vw, 94px); line-height: .94; font-weight: 400; letter-spacing: clamp(-3px, -.04em, -1.5px); margin: 10px 0 28px; }
 .welcome h1 span { color: var(--faint); }
@@ -196,7 +194,7 @@ button:disabled { opacity: .4; cursor: not-allowed; }
 }
 
 @media print {
-  .topbar, .sidebar, .emergency-banner, .conversation-heading, .user-message, .follow-up, .answer-actions, .loading-card, .feedback-comment { display: none !important; }
+  .topbar, .sidebar, .conversation-heading, .user-message, .follow-up, .answer-actions, .loading-card, .feedback-comment { display: none !important; }
   body, .chat, .answer-card { background: white; }
   .workspace { display: block; }
   .conversation { max-width: none; padding: 0; }

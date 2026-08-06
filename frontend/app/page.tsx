@@ -2,7 +2,6 @@
 
 import { FormEvent, useEffect, useRef, useState } from "react";
 import {
-  AlertTriangle,
   Bookmark,
   Check,
   ChevronDown,
@@ -334,7 +333,6 @@ export default function Home() {
         </aside>
 
         <section className="chat" id="ask">
-          <div className="emergency-banner" role="note"><AlertTriangle size={17} aria-hidden="true" /><span><strong>Active emergency?</strong> Do not wait for this tool. Call 911 for immediate danger, then contact your veterinarian or the responsible agency for animal disease, worker injury, fire, gas exposure, or a manure spill.</span></div>
           {messages.length === 0 ? (
             <div className="welcome">
               <p className="eyebrow orange"><MessageSquareText size={15} /> Ask the compliance copilot</p>
