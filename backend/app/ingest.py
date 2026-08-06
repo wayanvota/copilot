@@ -3,18 +3,22 @@ import hashlib
 import io
 import re
 from datetime import date, datetime, timezone
+from pathlib import Path
 from urllib.parse import urlparse
 
 import httpx
 from bs4 import BeautifulSoup
 from pypdf import PdfReader
-from sqlalchemy import func, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.orm import Session
 
 from .database import SessionLocal
 from .embeddings import embed_texts
 from .models import Chunk, Document, DocumentVersion
 from .source_registry import ALLOWED_HOST_SUFFIXES, APPROVED_SOURCES
+
+
+MANUAL_SOURCE_ROOT = Path(__file__).resolve().parents[1]
 
 
 def _allowed_url(url: str) -> bool:
@@ -41,12 +45,22 @@ def fetch_source(url: str) -> str:
         content_type = response.headers.get("content-type", "").lower()
         if "pdf" in content_type or str(response.url).lower().endswith(".pdf"):
             reader = PdfReader(io.BytesIO(response.content))
-            return _clean_text("\n\n".join(page.extract_text() or "" for page in reader.pages))
+            return _clean_text("\n\n".join(page.extract_text(extraction_mode="layout") or "" for page in reader.pages))
         soup = BeautifulSoup(response.text, "html.parser")
         for node in soup(["script", "style", "nav", "footer", "header", "form", "noscript"]):
             node.decompose()
         main = soup.find("main") or soup.find("article") or soup.body or soup
         return _clean_text(main.get_text("\n", strip=True))
+
+
+def read_manual_source(relative_path: str) -> str:
+    path = (MANUAL_SOURCE_ROOT / relative_path).resolve()
+    if MANUAL_SOURCE_ROOT not in path.parents:
+        raise ValueError("Manual source path must stay inside the backend directory")
+    if path.suffix.lower() != ".pdf":
+        raise ValueError("Only PDF manual sources are supported")
+    reader = PdfReader(path)
+    return _clean_text("\n\n".join(page.extract_text(extraction_mode="layout") or "" for page in reader.pages))
 
 
 def chunk_text(text: str, size: int = 2400, overlap: int = 300) -> list[str]:
@@ -74,7 +88,10 @@ def _parse_date(value: str | None) -> date | None:
 
 def ingest_source(db: Session, source: dict) -> str:
     try:
-        content = fetch_source(source["url"])
+        if source.get("manual_path"):
+            content = read_manual_source(source["manual_path"])
+        else:
+            content = fetch_source(source["url"])
         if len(content) < 200:
             raise ValueError("Fetched source did not contain enough readable text")
     except (httpx.HTTPError, ValueError, OSError) as exc:
@@ -108,7 +125,8 @@ def ingest_source(db: Session, source: dict) -> str:
         document.effective_date = _parse_date(source.get("effective_date"))
         document.content_hash = content_hash
         document.retrieved_at = now
-        document.chunks.clear()
+        db.execute(delete(Chunk).where(Chunk.document_id == document.id))
+        db.flush()
 
     db.add(DocumentVersion(document_id=document.id, content_hash=content_hash, content=content, retrieved_at=now))
     pieces = chunk_text(content)

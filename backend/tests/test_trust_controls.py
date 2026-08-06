@@ -1,9 +1,14 @@
 from datetime import datetime, timezone
 from types import SimpleNamespace
 
+from sqlalchemy import create_engine, func, select
+from sqlalchemy.orm import sessionmaker
+
 from app.copilot import _strict_response_schema, _validate_citations
-from app.ingest import _allowed_url, chunk_text
+from app.ingest import _allowed_url, chunk_text, ingest_source, read_manual_source
+from app.models import Base, Chunk, Document
 from app.schemas import Applicability, CitedClaim, GeneratedAnswer
+from app.source_registry import APPROVED_SOURCES
 
 
 def answer_with(citation: str) -> GeneratedAnswer:
@@ -71,3 +76,37 @@ def test_chunking_preserves_content_and_limits_size():
     assert len(chunks) > 1
     assert all(len(chunk) <= 900 for chunk in chunks)
     assert "Paragraph 0" in chunks[0]
+
+
+def test_manual_chapter_459_is_complete_current_code():
+    text = read_manual_source("corpus/manual/459.pdf")
+    assert "Iowa Code 2026, Chapter 459" in text
+    assert "459.303 Confinement feeding operations" in text
+    assert "459.605 Habitual violators" in text
+    assert len(text) > 150_000
+
+
+def test_manual_source_replaces_existing_chunks_without_ordinal_collision(tmp_path, monkeypatch):
+    engine = create_engine(f"sqlite:///{tmp_path / 'replacement.sqlite3'}")
+    TestingSession = sessionmaker(bind=engine)
+    Base.metadata.create_all(engine)
+    source = next(item for item in APPROVED_SOURCES if item["title"].startswith("Iowa Code Chapter 459"))
+    monkeypatch.setattr("app.ingest.embed_texts", lambda texts: [[0.0] * 1024 for _ in texts])
+
+    with TestingSession() as db:
+        document = Document(
+            title=source["title"], agency=source["agency"], url=source["url"],
+            jurisdiction="Iowa", topic="permits", source_tier=1,
+            document_type="statute", content_hash="old",
+        )
+        db.add(document)
+        db.flush()
+        db.add(Chunk(document_id=document.id, ordinal=0, content="Old fallback", token_count=3, embedding=[0.0] * 1024))
+        db.commit()
+
+        ingest_source(db, source)
+        db.commit()
+        assert db.scalar(select(func.count(Chunk.id)).where(Chunk.document_id == document.id)) > 1
+        assert db.scalar(select(func.count(func.distinct(Chunk.ordinal))).where(Chunk.document_id == document.id)) == db.scalar(
+            select(func.count(Chunk.id)).where(Chunk.document_id == document.id)
+        )

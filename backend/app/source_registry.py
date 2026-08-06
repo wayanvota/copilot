@@ -30,6 +30,7 @@ APPROVED_SOURCES = [
         "source_tier": 1,
         "document_type": "statute",
         "publication_date": "2026-01-01",
+        "manual_path": "corpus/manual/459.pdf",
         "fallback_excerpt": "Iowa Code chapter 459 is the Animal Agriculture Compliance Act. Section 459.303 requires a construction permit before building or expanding a confinement feeding operation structure when the completed operation will have at least 1,000 animal units or when the project uses an unformed manure storage structure. Section 459.312 requires a manure management plan to calculate the land needed for manure application using crop nitrogen needs and a phosphorus index. The operation's capacity, storage type, site, and related nearby operations determine which requirements apply.",
     },
     {
