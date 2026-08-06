@@ -6,7 +6,7 @@ from fastapi import Depends, FastAPI, Header, HTTPException, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, RedirectResponse
 from sqlalchemy import func, select, text
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 
 from .config import settings
 from .copilot import answer_question
@@ -14,7 +14,7 @@ from .database import get_db
 from .models import Bookmark, Chunk, Conversation, Document, Feedback, Message, QueryLog
 from .schemas import (
     BookmarkRequest, ChatRequest, ChatResponse, ConversationMessageResponse, ConversationResponse,
-    FeedbackRequest, SavedResponse, SourceResponse,
+    FeedbackRequest, SavedResponse, SourceResponse, SourceUpdateResponse,
 )
 
 app = FastAPI(
@@ -103,6 +103,28 @@ def sources(db: Session = Depends(get_db)):
     ]
 
 
+@app.get("/api/updates", response_model=list[SourceUpdateResponse])
+def source_updates(db: Session = Depends(get_db)):
+    """Return only sources with more than one stored version. No change is implied otherwise."""
+    documents = db.scalars(
+        select(Document)
+        .options(selectinload(Document.versions))
+        .where(Document.status == "active")
+        .order_by(Document.updated_at.desc())
+    ).all()
+    updates: list[SourceUpdateResponse] = []
+    for document in documents:
+        versions = sorted(document.versions, key=lambda version: version.retrieved_at, reverse=True)
+        if len(versions) < 2:
+            continue
+        updates.append(SourceUpdateResponse(
+            document_id=document.id, title=document.title, agency=document.agency, url=document.url,
+            version_count=len(versions), latest_retrieved_at=versions[0].retrieved_at,
+            previous_retrieved_at=versions[1].retrieved_at,
+        ))
+    return updates[:25]
+
+
 @app.post("/api/feedback", response_model=SavedResponse, status_code=201)
 def feedback(request: FeedbackRequest, db: Session = Depends(get_db)):
     record = Feedback(answer_id=request.answer_id, rating=request.rating, comment=request.comment)
@@ -131,6 +153,11 @@ def conversation(conversation_id: str, db: Session = Depends(get_db)):
 @app.get("/api/admin/summary", dependencies=[Depends(require_admin)])
 def admin_summary(db: Session = Depends(get_db)):
     since = datetime.now(timezone.utc) - timedelta(days=7)
+    unresolved = db.execute(
+        select(QueryLog.question, func.count(QueryLog.id).label("count"))
+        .where(QueryLog.created_at >= since, QueryLog.evidence_status == "insufficient")
+        .group_by(QueryLog.question).order_by(func.count(QueryLog.id).desc()).limit(10)
+    ).all()
     return {
         "corpus": {
             "documents": db.scalar(select(func.count(Document.id))) or 0,
@@ -144,4 +171,5 @@ def admin_summary(db: Session = Depends(get_db)):
             "helpful": db.scalar(select(func.count(Feedback.id)).where(Feedback.created_at >= since, Feedback.rating == "helpful")) or 0,
             "not_helpful": db.scalar(select(func.count(Feedback.id)).where(Feedback.created_at >= since, Feedback.rating == "not_helpful")) or 0,
         },
+        "top_evidence_gaps": [{"question": question, "count": count} for question, count in unresolved],
     }

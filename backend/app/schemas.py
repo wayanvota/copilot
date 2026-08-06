@@ -8,11 +8,21 @@ class StrictModel(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
 
+class FarmContext(StrictModel):
+    county: str | None = Field(default=None, max_length=100)
+    operation_type: Literal["confinement", "open_feedlot", "mixed", "unknown"] = "unknown"
+    animal_unit_capacity: int | None = Field(default=None, ge=1, le=1_000_000)
+    manure_storage: Literal["formed", "unformed", "lagoon", "dry", "unknown"] = "unknown"
+    workers: Literal["family", "nonfamily", "both", "unknown"] = "unknown"
+    sells_into_california: Literal["yes", "no", "unknown"] = "unknown"
+
+
 class ChatRequest(StrictModel):
     question: str = Field(min_length=3, max_length=2000)
     conversation_id: str | None = None
     source_tiers: list[int] = Field(default_factory=lambda: [1, 2])
     topics: list[str] = Field(default_factory=list)
+    farm_context: FarmContext | None = None
 
     @field_validator("source_tiers")
     @classmethod
@@ -41,6 +51,7 @@ class GeneratedAnswer(StrictModel):
     related_questions: list[str] = Field(default_factory=list, max_length=4)
     applicability: Applicability
     evidence_status: Literal["verified", "insufficient", "conflicting"]
+    missing_facts: list[str] = Field(default_factory=list, max_length=6)
     limitations: list[str] = Field(default_factory=list, max_length=6)
 
 
@@ -89,6 +100,16 @@ class SourceResponse(StrictModel):
     publication_date: str | None
     effective_date: str | None
     retrieved_at: datetime
+
+
+class SourceUpdateResponse(StrictModel):
+    document_id: str
+    title: str
+    agency: str
+    url: HttpUrl
+    version_count: int
+    latest_retrieved_at: datetime
+    previous_retrieved_at: datetime
 
 
 class ConversationMessageResponse(StrictModel):

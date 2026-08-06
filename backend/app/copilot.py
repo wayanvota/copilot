@@ -1,5 +1,6 @@
 import hashlib
 import json
+import re
 import time
 from datetime import datetime, timezone
 
@@ -12,7 +13,7 @@ from .config import settings
 from .embeddings import get_client
 from .models import Conversation, Message, QueryLog, uuid4
 from .retrieval import RetrievedChunk, hybrid_search
-from .schemas import Applicability, ChatRequest, ChatResponse, Citation, CitedClaim, GeneratedAnswer
+from .schemas import Applicability, ChatRequest, ChatResponse, Citation, CitedClaim, FarmContext, GeneratedAnswer
 
 SYSTEM_PROMPT = """You are an evidence-constrained compliance assistant for Iowa pork producers.
 
@@ -29,7 +30,9 @@ Evidence rules:
 - Do not output URLs. The server resolves chunk IDs to source links.
 - Distinguish statutes and regulations from guidance and recommended practice.
 - If sources conflict, set evidence_status to conflicting, cite both, and explain the conflict.
-- If the evidence or user facts are insufficient, set evidence_status to insufficient, say "I could not verify this from the available authoritative sources," identify the missing facts or source, and avoid a yes/no conclusion.
+- Use evidence_status to describe the sources, not the completeness of the user's farm facts.
+- Set evidence_status to insufficient only when the retrieved sources do not establish a reliable answer. Say "I could not verify this from the available authoritative sources" and identify the source gap.
+- When authoritative evidence establishes the rule but applying it requires more facts, keep evidence_status verified, avoid a final yes/no conclusion, and put each needed fact in missing_facts.
 - Applicability is high, medium, low, or unknown. It describes fit to the user's stated facts, not confidence in the model.
 
 Writing rules:
@@ -104,12 +107,27 @@ def _insufficient_answer(reason: str) -> GeneratedAnswer:
         short_answer=[CitedClaim(text="I could not verify this from the available authoritative sources.", citations=[])],
         why=[], rules=[], documentation=[], related_questions=["Which agency, permit, job task, or operation detail should be checked next?"],
         applicability=Applicability(level="unknown", explanation="The retrieved evidence was not sufficient to apply a rule to the stated facts."),
-        evidence_status="insufficient", limitations=[reason],
+        evidence_status="insufficient", missing_facts=[], limitations=[reason],
     )
+
+
+_CITATION_ARTIFACT = re.compile(
+    r"\s*\[(?:[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})(?:\s*,\s*[0-9a-f-]{36})*\]",
+    re.IGNORECASE,
+)
+
+
+def _clean_claim_text(text: str) -> str:
+    """Remove model-visible chunk IDs. Citation chips are rendered separately."""
+    cleaned = _CITATION_ARTIFACT.sub("", text)
+    return re.sub(r"\s+([,.;:])", r"\1", cleaned).strip()
 
 
 def _validate_citations(answer: GeneratedAnswer, valid_ids: set[str]) -> GeneratedAnswer:
     groups = [answer.short_answer, answer.why, answer.rules, answer.documentation]
+    for group in groups:
+        for claim in group:
+            claim.text = _clean_claim_text(claim.text)
     invalid = {citation for group in groups for claim in group for citation in claim.citations if citation not in valid_ids}
     if invalid:
         return _insufficient_answer("The generated answer referenced evidence that was not retrieved, so it was withheld.")
@@ -126,7 +144,15 @@ def _validate_citations(answer: GeneratedAnswer, valid_ids: set[str]) -> Generat
     return answer
 
 
-def _generate(client: OpenAI, question: str, history: str, results: list[RetrievedChunk], conversation_id: str) -> GeneratedAnswer:
+def _farm_context(context: FarmContext | None) -> str:
+    if context is None:
+        return "No farm profile was provided."
+    facts = context.model_dump(exclude_none=True)
+    stated = [f"{key.replace('_', ' ')}: {value}" for key, value in facts.items() if value != "unknown"]
+    return "\n".join(stated) or "No specific farm facts were provided."
+
+
+def _generate(client: OpenAI, question: str, history: str, results: list[RetrievedChunk], conversation_id: str, farm_context: FarmContext | None) -> GeneratedAnswer:
     prompt = f"""PRIOR CONVERSATION (context only, not evidence):
 <CONVERSATION>
 {history}
@@ -136,6 +162,11 @@ CURRENT USER QUESTION:
 <QUESTION>
 {question}
 </QUESTION>
+
+USER-PROVIDED FARM FACTS (context only, not evidence):
+<FARM_CONTEXT>
+{_farm_context(farm_context)}
+</FARM_CONTEXT>
 
 RETRIEVED EVIDENCE:
 {_evidence_context(results)}
@@ -199,16 +230,21 @@ def answer_question(db: Session, request: ChatRequest) -> ChatResponse:
         db.flush()
 
     prior_history = _history(db, conversation.id)
+    # Farm context is used for this answer but is deliberately not copied into server conversation history.
     db.add(Message(conversation_id=conversation.id, role="user", content={"question": request.question}))
     db.flush()
     results: list[RetrievedChunk] = []
     error_code: str | None = None
     try:
-        results = hybrid_search(db, request.question, request.source_tiers, request.topics)
+        retrieval_question = request.question
+        context_text = _farm_context(request.farm_context)
+        if request.farm_context is not None and "No specific" not in context_text:
+            retrieval_question = f"{request.question}\nFarm context: {context_text}"
+        results = hybrid_search(db, retrieval_question, request.source_tiers, request.topics)
         if not results:
             generated = _insufficient_answer("No approved source excerpts matched the question.")
         else:
-            generated = _generate(get_client(), request.question, prior_history, results, conversation.id)
+            generated = _generate(get_client(), request.question, prior_history, results, conversation.id, request.farm_context)
             generated = _validate_citations(generated, {result.chunk.id for result in results})
     except Exception as exc:
         error_code = type(exc).__name__

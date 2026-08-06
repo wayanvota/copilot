@@ -11,6 +11,8 @@ An evidence-constrained compliance assistant for Iowa pork producers. The fronte
 - Retrieved pages are treated as untrusted data, so document text cannot override system instructions.
 - Low-evidence questions return an explicit inability to verify, not a guessed answer.
 - Applicability uses `high`, `medium`, `low`, or `unknown`, never a numeric score.
+- Missing source evidence is distinguished from missing farm facts.
+- Optional farm context is user-provided context, never regulatory evidence.
 
 This is decision support, not legal, veterinary, or emergency advice.
 
@@ -69,6 +71,7 @@ No API key is ever shipped to the browser.
 
 - `POST /api/chat`: retrieve evidence and return a cited answer
 - `GET /api/sources`: list approved corpus sources
+- `GET /api/updates`: list sources with multiple distinct stored versions
 - `POST /api/feedback`: record answer feedback
 - `POST /api/bookmarks`: save an answer
 - `GET /api/conversations/{id}`: retrieve conversation history
@@ -84,3 +87,5 @@ python -m app.ingest --seed
 ```
 
 The starter registry contains official Iowa DNR, U.S. Department of Labor, USDA APHIS, OSHA, FDA, and Iowa Legislature sources. Each fetched source is stored with a content hash and retrieval timestamp for version tracking.
+
+See `PRD_COMPARISON.md` for the current requirement-by-requirement assessment and remaining priorities.

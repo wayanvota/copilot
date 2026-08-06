@@ -5,11 +5,11 @@ from types import SimpleNamespace
 from sqlalchemy import create_engine, func, select
 from sqlalchemy.orm import sessionmaker
 
-from app.copilot import _strict_response_schema, _validate_citations
+from app.copilot import _clean_claim_text, _farm_context, _strict_response_schema, _validate_citations
 from app.ingest import _allowed_url, chunk_text, ingest_source, read_manual_source
 from app.models import Base, Chunk, Document
 from app.retrieval import _expand_query, hybrid_search
-from app.schemas import Applicability, CitedClaim, GeneratedAnswer
+from app.schemas import Applicability, CitedClaim, FarmContext, GeneratedAnswer
 from app.source_registry import APPROVED_SOURCES
 
 
@@ -44,6 +44,19 @@ def test_uncited_claim_is_omitted_without_discarding_cited_answer():
     assert checked.short_answer[0].text == "A test claim."
     assert checked.rules == []
     assert "1 uncited" in checked.limitations[-1]
+
+
+def test_chunk_ids_are_removed_from_visible_claim_text():
+    chunk_id = "d9ad2ec5-2bf8-4edc-8fd0-9e0f4c65e755"
+    assert _clean_claim_text(f"A cited rule applies [{chunk_id}].") == "A cited rule applies."
+
+
+def test_farm_context_is_explicitly_labeled_as_user_context():
+    context = FarmContext(county="Story", operation_type="confinement", animal_unit_capacity=1000)
+    rendered = _farm_context(context)
+    assert "county: Story" in rendered
+    assert "operation type: confinement" in rendered
+    assert "animal unit capacity: 1000" in rendered
 
 
 def test_response_schema_requires_every_declared_property():

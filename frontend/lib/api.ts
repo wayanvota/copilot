@@ -1,4 +1,4 @@
-import type { CopilotAnswer } from "./types";
+import type { CopilotAnswer, FarmContext, SourceSummary, SourceUpdate } from "./types";
 
 const API_BASE_URL = (process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000").replace(/\/$/, "");
 
@@ -13,6 +13,7 @@ export async function askCopilot(payload: {
   conversation_id?: string;
   source_tiers?: number[];
   topics?: string[];
+  farm_context?: FarmContext;
 }): Promise<CopilotAnswer> {
   const response = await fetch(`${API_BASE_URL}/api/chat`, {
     method: "POST",
@@ -23,6 +24,18 @@ export async function askCopilot(payload: {
     const body = await response.json().catch(() => ({}));
     throw new Error(body.detail || "The copilot could not answer right now.");
   }
+  return response.json();
+}
+
+export async function getSources(): Promise<SourceSummary[]> {
+  const response = await fetch(`${API_BASE_URL}/api/sources`);
+  if (!response.ok) throw new Error("Source status could not be loaded.");
+  return response.json();
+}
+
+export async function getSourceUpdates(): Promise<SourceUpdate[]> {
+  const response = await fetch(`${API_BASE_URL}/api/updates`);
+  if (!response.ok) throw new Error("Source updates could not be loaded.");
   return response.json();
 }
 
