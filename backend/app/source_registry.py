@@ -286,6 +286,7 @@ APPROVED_SOURCES = [
         "source_tier": 1,
         "document_type": "administrative rule",
         "publication_date": "2025-02-05",
+        "manual_path": "corpus/manual/iac-21-64-1-reportable-diseases.pdf",
         "fallback_excerpt": "Iowa Administrative Code rule 21-64.1 requires prompt reporting to the Iowa Department of Agriculture and Land Stewardship of a diagnosis or suspected diagnosis of listed infectious or contagious diseases. Aujeszky's disease, also known as pseudorabies, is listed as a multiple-species reportable disease. The swine-disease list includes African swine fever, classical swine fever, Nipah virus encephalitis, porcine cysticercosis, porcine reproductive and respiratory syndrome, swine vesicular disease, and transmissible gastroenteritis.",
     },
     {
@@ -297,6 +298,7 @@ APPROVED_SOURCES = [
         "source_tier": 1,
         "document_type": "statute",
         "publication_date": "2026-01-01",
+        "manual_path": "corpus/manual/iowa-code-166D-pseudorabies.pdf",
         "fallback_excerpt": "Iowa Code chapter 166D establishes the state's pseudorabies control program. It authorizes testing, epidemiological investigation, quarantine, movement restrictions, herd cleanup, and other measures directed by the Iowa Department of Agriculture and Land Stewardship. The requirements that apply to a particular farm depend on the department's investigation, disease status, and written quarantine or movement instructions.",
     },
     {
@@ -411,6 +413,7 @@ APPROVED_SOURCES = [
         "source_tier": 1,
         "document_type": "statute",
         "publication_date": "2026-01-01",
+        "manual_path": "corpus/manual/iowa-code-167-dead-animals.pdf",
         "fallback_excerpt": "Iowa Code chapter 167 requires a person caring for or owning an animal that dies to dispose of the carcass within a reasonable time. Authorized methods include delivery to a licensed disposal person and disposal by composting, cooking, burial, or burning as allowed by the chapter and implementing rules. Disease-control officials may direct a different method when needed to prevent disease spread.",
     },
     {
@@ -422,6 +425,7 @@ APPROVED_SOURCES = [
         "source_tier": 1,
         "document_type": "administrative rule",
         "publication_date": "2026-01-01",
+        "manual_path": "corpus/manual/iac-567-105-6-dead-animal-composting.pdf",
         "fallback_excerpt": "Iowa Administrative Code rule 567-105.6 sets operating requirements for composting dead farm animals. Carcasses must enter the composting process within 24 hours of death. The rule specifies base, bulking-agent, and cover layers, control of leachate, odors, and scavengers, decomposition before removal, and land application that minimizes runoff. A business composting animals from sites it neither owns nor operates must obtain a permit.",
     },
     {

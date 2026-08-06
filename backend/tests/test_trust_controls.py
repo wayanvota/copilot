@@ -1,3 +1,4 @@
+import re
 from datetime import datetime, timezone
 from types import SimpleNamespace
 
@@ -93,6 +94,18 @@ def test_every_registered_manual_pdf_has_extractable_text():
     for source in manual_sources:
         text = read_manual_source(source["manual_path"])
         assert len(text) > 200, source["title"]
+
+
+def test_manual_iowa_legislature_sources_contain_the_controlling_text():
+    expected_text = {
+        "corpus/manual/iac-21-64-1-reportable-diseases.pdf": "Porcine reproductive and respiratory syndrome",
+        "corpus/manual/iowa-code-166D-pseudorabies.pdf": "PSEUDORABIES CONTROL",
+        "corpus/manual/iowa-code-167-dead-animals.pdf": "USE AND DISPOSAL OF DEAD ANIMALS",
+        "corpus/manual/iac-567-105-6-dead-animal-composting.pdf": "within 24 hours of death",
+    }
+    for path, phrase in expected_text.items():
+        normalized = re.sub(r"\s+", " ", read_manual_source(path))
+        assert phrase in normalized
 
 
 def test_manual_source_replaces_existing_chunks_without_ordinal_collision(tmp_path, monkeypatch):

@@ -51,15 +51,6 @@ Corpus after expansion: 45 documents
 - USCIS Form I-9, instructions, and employer-retention guidance
 - U.S. Department of Labor H-2A program guidance
 
-## Browser-only downloads still requested
+## Browser-only downloads resolved
 
-The following Iowa Legislature PDFs returned HTTP 503 to the local automated downloader. Render could retrieve or retain the text, and curated source-grounded fallbacks are present, but local copies should still be added for reproducibility.
-
-1. `https://www.legis.iowa.gov/docs/iac/rule/02-05-2025.21.64.1.pdf`  
-   Save as `iac-21-64-1-reportable-diseases.pdf`
-2. `https://www.legis.iowa.gov/docs/code/166D.pdf`  
-   Save as `iowa-code-166D-pseudorabies.pdf`
-3. `https://www.legis.iowa.gov/docs/code/167.pdf`  
-   Save as `iowa-code-167-dead-animals.pdf`
-4. `https://www.legis.iowa.gov/docs/iac/rule/567.105.6.pdf`  
-   Save as `iac-567-105-6-dead-animal-composting.pdf`
+The Iowa Legislature PDFs for rule 21-64.1, Iowa Code chapters 166D and 167, and rule 567-105.6 returned HTTP 503 to the local automated downloader. Browser-downloaded copies have now been visually verified, checked for extractable controlling text, and stored in the corpus for reproducible ingestion.
