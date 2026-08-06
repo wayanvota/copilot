@@ -27,13 +27,6 @@ button { color: inherit; }
 .brand > span:last-child { display: flex; flex-direction: column; line-height: 1.05; }
 .brand strong { font-size: 17px; letter-spacing: -.2px; white-space: nowrap; }
 .brand small { color: var(--faint); font-size: 11px; letter-spacing: .7px; text-transform: uppercase; margin-top: 3px; }
-.topbar nav { display: flex; gap: 28px; }
-.topbar nav a { color: var(--ink-80); font-size: 14px; text-decoration: none; }
-.topbar nav a:hover { text-decoration: underline; text-underline-offset: 5px; }
-.top-actions { display: flex; align-items: center; justify-content: flex-end; min-width: 238px; }
-.iowa-pill { border: 1px solid var(--oat); border-radius: 4px; padding: 9px 11px; font-size: 12px; text-transform: uppercase; letter-spacing: .7px; display: flex; align-items: center; gap: 7px; }
-.iowa-pill span { width: 7px; height: 7px; border-radius: 50%; background: var(--green); }
-.menu-button { display: none; background: transparent; border: 0; }
 
 .workspace { max-width: 1520px; min-height: calc(100vh - 76px); margin: 0 auto; display: grid; grid-template-columns: 330px minmax(0, 1fr); }
 .sidebar { border-right: 1px solid var(--oat); padding: 48px 32px 32px; background: var(--cream); }
@@ -138,18 +131,12 @@ button:disabled { opacity: .4; cursor: not-allowed; }
 @media (max-width: 896px) {
   .workspace { grid-template-columns: 1fr; }
   .sidebar { display: none; }
-  .topbar nav { display: none; position: absolute; inset: 76px 0 auto; padding: 20px; background: var(--white); border-bottom: 1px solid var(--oat); flex-direction: column; }
-  .topbar nav.open { display: flex; }
-  .top-actions { min-width: auto; }
-  .iowa-pill { display: none; }
-  .menu-button { display: block; }
   .welcome { min-height: calc(100vh - 76px); padding-top: 8vh; }
 }
 
 @media (max-width: 600px) {
   .topbar { padding: 0 16px; height: 68px; }
   .brand { min-width: 0; }
-  .topbar nav { top: 68px; }
   .welcome { min-height: calc(100vh - 68px); padding: 44px 18px 28px; }
   .welcome h1 { font-size: 52px; letter-spacing: -2.1px; }
   .lede { font-size: 16px; }

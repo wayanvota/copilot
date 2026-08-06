@@ -7,7 +7,6 @@ import {
   ChevronDown,
   ExternalLink,
   FileCheck2,
-  Menu,
   MessageSquareText,
   Printer,
   Search,
@@ -15,7 +14,6 @@ import {
   ShieldCheck,
   ThumbsDown,
   ThumbsUp,
-  X,
 } from "lucide-react";
 import { askCopilot, bookmarkAnswer, sendFeedback } from "@/lib/api";
 import type { ChatMessage, CitedClaim, CopilotAnswer } from "@/lib/types";
@@ -157,7 +155,6 @@ export default function Home() {
   const [conversationId, setConversationId] = useState<string>();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string>();
-  const [mobileNav, setMobileNav] = useState(false);
   const [sourceTiers, setSourceTiers] = useState<number[]>([1, 2]);
   const endRef = useRef<HTMLDivElement>(null);
 
@@ -191,15 +188,6 @@ export default function Home() {
           <span className="brand-mark">IA</span>
           <span><strong>Iowa Pork</strong><small>Compliance Copilot</small></span>
         </a>
-        <nav className={mobileNav ? "open" : ""} aria-label="Main navigation">
-          <a href="#ask">Ask a question</a>
-          <a href="#how-it-works">How evidence works</a>
-          <a href="#sources">Source policy</a>
-        </nav>
-        <div className="top-actions">
-          <span className="iowa-pill"><span /> Iowa-first</span>
-          <button className="menu-button" onClick={() => setMobileNav(!mobileNav)} aria-expanded={mobileNav} aria-label="Toggle menu">{mobileNav ? <X /> : <Menu />}</button>
-        </div>
       </header>
 
       <div className="workspace" id="top">
