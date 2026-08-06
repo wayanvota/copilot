@@ -163,8 +163,12 @@ export default function Home() {
   const [hasAccessCode, setHasAccessCode] = useState(false);
   const endRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => setHasAccessCode(Boolean(sessionStorage.getItem("copilot_access_token"))), []);
-  useEffect(() => endRef.current?.scrollIntoView({ behavior: "smooth" }), [messages, loading]);
+  useEffect(() => {
+    setHasAccessCode(Boolean(sessionStorage.getItem("copilot_access_token")));
+  }, []);
+  useEffect(() => {
+    endRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages, loading]);
 
   function unlock(event: FormEvent) {
     event.preventDefault();
