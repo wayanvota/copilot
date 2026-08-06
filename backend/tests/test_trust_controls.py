@@ -1,7 +1,7 @@
 from datetime import datetime, timezone
 from types import SimpleNamespace
 
-from app.copilot import _validate_citations
+from app.copilot import _strict_response_schema, _validate_citations
 from app.ingest import _allowed_url, chunk_text
 from app.schemas import Applicability, CitedClaim, GeneratedAnswer
 
@@ -27,6 +27,24 @@ def test_verified_claim_must_have_citation():
     answer.short_answer[0].citations = []
     checked = _validate_citations(answer, {"retrieved"})
     assert checked.evidence_status == "insufficient"
+
+
+def test_response_schema_requires_every_declared_property():
+    schema = _strict_response_schema()
+
+    def assert_strict_objects(node: object) -> None:
+        if isinstance(node, dict):
+            properties = node.get("properties")
+            if isinstance(properties, dict):
+                assert node["required"] == list(properties)
+                assert node["additionalProperties"] is False
+            for value in node.values():
+                assert_strict_objects(value)
+        elif isinstance(node, list):
+            for value in node:
+                assert_strict_objects(value)
+
+    assert_strict_objects(schema)
 
 
 def test_approved_source_hosts_only():

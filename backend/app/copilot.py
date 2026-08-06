@@ -39,6 +39,26 @@ Writing rules:
 """
 
 
+def _strict_response_schema() -> dict:
+    """Make Pydantic's schema satisfy the Responses API strict-mode contract."""
+    schema = GeneratedAnswer.model_json_schema()
+
+    def require_every_property(node: object) -> None:
+        if isinstance(node, dict):
+            properties = node.get("properties")
+            if isinstance(properties, dict):
+                node["required"] = list(properties)
+                node["additionalProperties"] = False
+            for value in node.values():
+                require_every_property(value)
+        elif isinstance(node, list):
+            for value in node:
+                require_every_property(value)
+
+    require_every_property(schema)
+    return schema
+
+
 def _history(db: Session, conversation_id: str) -> str:
     messages = db.scalars(
         select(Message).where(Message.conversation_id == conversation_id).order_by(Message.created_at.desc()).limit(6)
@@ -125,7 +145,7 @@ Return the required structured answer. Preserve uncertainty and cite only CHUNK_
                 "type": "json_schema",
                 "name": "compliance_answer",
                 "strict": True,
-                "schema": GeneratedAnswer.model_json_schema(),
+                "schema": _strict_response_schema(),
             },
         },
         max_output_tokens=3500,
