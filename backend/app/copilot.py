@@ -25,6 +25,7 @@ Authority and scope:
 Evidence rules:
 - Never invent or infer a law, regulation, form, date, penalty, requirement, citation, or exception.
 - Cite each substantive claim with one or more exact CHUNK_ID values from the evidence.
+- Every item in short_answer, why, rules, and documentation must contain at least one citation. Omit any item the evidence does not support.
 - Do not output URLs. The server resolves chunk IDs to source links.
 - Distinguish statutes and regulations from guidance and recommended practice.
 - If sources conflict, set evidence_status to conflicting, cite both, and explain the conflict.
@@ -113,9 +114,15 @@ def _validate_citations(answer: GeneratedAnswer, valid_ids: set[str]) -> Generat
     if invalid:
         return _insufficient_answer("The generated answer referenced evidence that was not retrieved, so it was withheld.")
     if answer.evidence_status != "insufficient":
-        uncited = [claim.text for group in groups for claim in group if not claim.citations]
-        if uncited:
-            return _insufficient_answer("One or more generated claims lacked a verifiable citation, so the answer was withheld.")
+        uncited_count = sum(1 for group in groups for claim in group if not claim.citations)
+        answer.short_answer = [claim for claim in answer.short_answer if claim.citations]
+        answer.why = [claim for claim in answer.why if claim.citations]
+        answer.rules = [claim for claim in answer.rules if claim.citations]
+        answer.documentation = [claim for claim in answer.documentation if claim.citations]
+        if not answer.short_answer:
+            return _insufficient_answer("No generated short answer had a verifiable citation, so the answer was withheld.")
+        if uncited_count:
+            answer.limitations.append(f"{uncited_count} uncited generated claim(s) were omitted from this answer.")
     return answer
 
 

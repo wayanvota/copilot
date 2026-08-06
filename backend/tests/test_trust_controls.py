@@ -29,6 +29,16 @@ def test_verified_claim_must_have_citation():
     assert checked.evidence_status == "insufficient"
 
 
+def test_uncited_claim_is_omitted_without_discarding_cited_answer():
+    answer = answer_with("retrieved")
+    answer.rules.append(CitedClaim(text="Unsupported extra claim.", citations=[]))
+    checked = _validate_citations(answer, {"retrieved"})
+    assert checked.evidence_status == "verified"
+    assert checked.short_answer[0].text == "A test claim."
+    assert checked.rules == []
+    assert "1 uncited" in checked.limitations[-1]
+
+
 def test_response_schema_requires_every_declared_property():
     schema = _strict_response_schema()
 
