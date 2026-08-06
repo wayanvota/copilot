@@ -180,3 +180,19 @@ def test_manure_acreage_query_prioritizes_mmp_calculation_evidence(tmp_path, mon
         results = hybrid_search(db, "How much land do I need to spread manure from my pigs?", [1], ["manure"])
         assert results[0].chunk.document_id == mmp.id
         assert "manure management plan" in _expand_query("How many acres for pig manure?")[0]
+
+
+def test_query_expansion_uses_canonical_terms_for_known_producer_phrasing():
+    prrs_query, _ = _expand_query("Is PRRS legally reportable in Iowa?")
+    assert "Porcine reproductive and respiratory syndrome" in prrs_query
+    assert "21 64.1" in prrs_query
+
+    separation_query, _ = _expand_query(
+        "What separation distances apply between a new Iowa confinement barn and neighbors, wells, roads, or sinkholes?"
+    )
+    assert "542-1420" in separation_query
+    assert "Table 6" in separation_query
+
+    foam_query, _ = _expand_query("What should I do before pumping a foaming manure pit?")
+    assert "evacuate extinguish" in foam_query
+    assert "hydrogen sulfide" in foam_query

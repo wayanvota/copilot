@@ -24,16 +24,55 @@ def _tokens(text: str) -> set[str]:
 
 def _expand_query(question: str) -> tuple[str, bool]:
     tokens = _tokens(question)
+    expansions: list[str] = []
     acreage_intent = bool(tokens & {"land", "acre", "acres", "acreage"}) and bool(
         tokens & {"manure", "spread", "apply", "application", "pig", "pigs", "hog", "hogs", "swine"}
     )
-    if not acreage_intent:
+    if acreage_intent:
+        expansions.append(
+            "manure management plan annual manure produced planned application rate total acres "
+            "sufficient land base crop nitrogen phosphorus nutrient"
+        )
+    if "prrs" in tokens:
+        expansions.append(
+            "Porcine reproductive and respiratory syndrome Iowa legally reportable disease "
+            "Iowa Administrative Code rule 21 64.1 veterinarian state veterinarian"
+        )
+    construction_intent = bool(
+        tokens & {"construction", "barn", "confinement", "structure", "expansion"}
+    ) and bool(
+        tokens
+        & {
+            "separation",
+            "distance",
+            "distances",
+            "neighbor",
+            "neighbors",
+            "well",
+            "wells",
+            "road",
+            "roads",
+            "sinkhole",
+            "sinkholes",
+        }
+    )
+    if construction_intent:
+        expansions.append(
+            "DNR Form 542-1420 Table 6 minimum separation distances confinement feeding operation "
+            "residences businesses churches schools public use areas public private wells "
+            "agricultural drainage well sinkhole water source designated wetland thoroughfare"
+        )
+    foam_intent = bool(tokens & {"foam", "foaming"}) and bool(
+        tokens & {"manure", "pit", "agitating", "agitation", "pumping"}
+    )
+    if foam_intent:
+        expansions.append(
+            "manure agitation pumping safety protocol evacuate extinguish ignition sources signage barriers "
+            "ventilate methane hydrogen sulfide pump-out airflow"
+        )
+    if not expansions:
         return question, False
-    return (
-        question
-        + " manure management plan annual manure produced planned application rate total acres "
-        + "sufficient land base crop nitrogen phosphorus nutrient"
-    ), True
+    return question + " " + " ".join(expansions), acreage_intent
 
 
 def _cosine(a: list[float], b: list[float]) -> float:

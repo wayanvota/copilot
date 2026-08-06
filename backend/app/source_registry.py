@@ -369,6 +369,16 @@ APPROVED_SOURCES = [
         "fallback_excerpt": "Iowa State University Extension warns that swine manure foam can trap methane and increase fire and explosion risk. Producers should eliminate ignition sources, avoid welding or open flame near the barn or pit, ventilate before and during agitation, monitor conditions, keep people and animals away from hazardous areas, and use safe agitation and pumping practices. Foam treatments do not replace controls for methane and other manure gases.",
     },
     {
+        "title": "Protocols and Preparation for Manure Agitation and Pumping",
+        "agency": "University of Minnesota Extension",
+        "url": "https://extension.umn.edu/manure-management/manure-agitation-and-pumping",
+        "jurisdiction": "Upper Midwest",
+        "topic": "safety",
+        "source_tier": 2,
+        "document_type": "extension safety protocol",
+        "fallback_excerpt": "University of Minnesota Extension organizes manure agitation and pumping preparation as evacuate, extinguish, signage, and ventilate. Remove people and, when possible, animals from barns above stored manure; restrict re-entry with signs and barriers; eliminate ignition sources and turn off non-ventilation equipment and pilot lights; and maintain a ventilation plan before and during agitation. For deep-pit swine barns, manage pump-out openings and airflow so gases do not short-circuit into the animal zone. Manure gases, including methane and hydrogen sulfide, can reach dangerous levels during agitation and pumping.",
+    },
+    {
         "title": "Winter Manure Application Guide",
         "agency": "Iowa Department of Natural Resources",
         "url": "https://www.iowadnr.gov/media/5845/download?inline=",
@@ -517,4 +527,5 @@ ALLOWED_HOST_SUFFIXES = (
     "cdfa.ca.gov",
     "uscis.gov",
     "flag.dol.gov",
+    "extension.umn.edu",
 )
