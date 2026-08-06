@@ -8,8 +8,8 @@ Corpus after expansion: 45 documents
 
 ## Outcome
 
-- 12 verified answers
-- 8 conditional answers that cite applicable evidence and identify the farm-specific facts needed for a final determination
+- 13 verified answers
+- 7 conditional answers that cite applicable evidence and identify the farm-specific facts needed for a final determination
 - 0 questions returned the former empty “no approved source excerpts matched” result
 
 “Conditional” is not treated as a failed retrieval when the governing rule depends on facts the question does not supply, such as animal-unit capacity, ground condition, job task, disease-control order, or destination market.
@@ -32,7 +32,7 @@ Corpus after expansion: 45 documents
 | 12 | Do I need an Iowa DNR construction permit before building or expanding a hog barn? | Verified with capacity and storage-type conditions |
 | 13 | What separation distances apply between a new Iowa confinement barn and neighbors, wells, roads, or sinkholes? | Verified with capacity, location, and well-type conditions |
 | 14 | How quickly must I dispose of a dead pig, and which disposal methods are allowed? | Verified |
-| 15 | What Iowa requirements apply if I compost dead pigs on the farm? | Conditional on whether carcasses originate on the operation and the composting setup |
+| 15 | What Iowa requirements apply if I compost dead pigs on the farm? | Verified with facility-location, mortality-source, and disease-status conditions |
 | 16 | Does California Proposition 12 apply to my Iowa sow operation if some pork may be sold in California? | Conditional on animal class, production purpose, and California destination |
 | 17 | What records and inspections do I need for Proposition 12 pork certification? | Verified |
 | 18 | Can I hire a 14- or 15-year-old who is not my child to clean a hog barn? | Conditional on each task, equipment, animal exposure, and school hours |
