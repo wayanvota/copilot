@@ -54,3 +54,5 @@ Corpus after expansion: 45 documents
 ## Browser-only downloads resolved
 
 The Iowa Legislature PDFs for rule 21-64.1, Iowa Code chapters 166D and 167, and rule 567-105.6 returned HTTP 503 to the local automated downloader. Browser-downloaded copies have now been visually verified, checked for extractable controlling text, and stored in the corpus for reproducible ingestion.
+
+The composting smoke test identified rule 567-105.3 as an additional controlling dependency. Its official URL and source-grounded text are indexed, but its local automated download is blocked and a browser-downloaded copy is still requested.

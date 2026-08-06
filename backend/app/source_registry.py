@@ -429,6 +429,17 @@ APPROVED_SOURCES = [
         "fallback_excerpt": "Iowa Administrative Code rule 567-105.6 sets operating requirements for composting dead farm animals. Carcasses must enter the composting process within 24 hours of death. The rule specifies base, bulking-agent, and cover layers, control of leachate, odors, and scavengers, decomposition before removal, and land application that minimizes runoff. A business composting animals from sites it neither owns nor operates must obtain a permit.",
     },
     {
+        "title": "Iowa Administrative Code Rule 567-105.3, General Composting Requirements",
+        "agency": "Iowa Legislature",
+        "url": "https://www.legis.iowa.gov/docs/ACO/rule/567.105.3.pdf",
+        "jurisdiction": "Iowa",
+        "topic": "animal_health",
+        "source_tier": 1,
+        "document_type": "administrative rule",
+        "publication_date": "2026-01-01",
+        "fallback_excerpt": "Iowa Administrative Code rule 567-105.3 applies general requirements to composting facilities not exempt under rule 567-105.2. A facility operating under a permit exemption may be required to obtain a solid-waste composting permit if it does not comply with the chapter, and it must follow applicable city and county ordinances and permits. The composting facility must be 500 feet from an existing inhabited residence other than the owner's or operator's residence, outside wetlands, 200 feet from public wells, 100 feet from private wells, 50 feet from property lines, and 100 feet from flowing or intermittent streams, lakes, or ponds. It must control leachate, run-on, runoff, and ponding; use an all-weather, relatively impermeable surface; properly dispose of noncompostable waste; minimize odor, dust, noise, litter, vectors, and public-health hazards; and limit finished-compost storage to 18 months unless the department approves an extension in writing.",
+    },
+    {
         "title": "California Proposition 12 Guidance for Pork Producers",
         "agency": "California Department of Food and Agriculture",
         "url": "https://www.cdfa.ca.gov/AHFSS/AnimalCare/docs/Animal_Care_Producer_Pork.pdf",
