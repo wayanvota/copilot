@@ -7,6 +7,7 @@ from sqlalchemy.orm import sessionmaker
 from app.copilot import _strict_response_schema, _validate_citations
 from app.ingest import _allowed_url, chunk_text, ingest_source, read_manual_source
 from app.models import Base, Chunk, Document
+from app.retrieval import _expand_query, hybrid_search
 from app.schemas import Applicability, CitedClaim, GeneratedAnswer
 from app.source_registry import APPROVED_SOURCES
 
@@ -133,3 +134,41 @@ def test_previous_source_url_is_consolidated(tmp_path, monkeypatch):
         documents = list(db.scalars(select(Document).where(Document.title == source["title"])))
         assert len(documents) == 1
         assert documents[0].url == source["url"]
+
+
+def test_manure_acreage_query_prioritizes_mmp_calculation_evidence(tmp_path, monkeypatch):
+    engine = create_engine(f"sqlite:///{tmp_path / 'retrieval.sqlite3'}")
+    TestingSession = sessionmaker(bind=engine)
+    Base.metadata.create_all(engine)
+    monkeypatch.setattr("app.retrieval.embed_texts", lambda texts: [[0.0] * 1024 for _ in texts])
+
+    with TestingSession() as db:
+        mmp = Document(
+            title="Manure Management Plan Forms for Confinement Feeding Operations", agency="Iowa DNR",
+            url="https://www.iowadnr.gov/mmp", jurisdiction="Iowa", topic="manure", source_tier=1,
+            document_type="official form", content_hash="mmp",
+        )
+        setbacks = Document(
+            title="Separation Distances for Land Application of Manure", agency="Iowa DNR",
+            url="https://www.iowadnr.gov/setbacks", jurisdiction="Iowa", topic="manure", source_tier=1,
+            document_type="official guidance", content_hash="setbacks",
+        )
+        db.add_all([mmp, setbacks])
+        db.flush()
+        db.add_all([
+            Chunk(
+                document_id=mmp.id, ordinal=0,
+                content="Annual manure produced and planned application rate demonstrate total acres and a sufficient land base using crop nitrogen and phosphorus nutrient needs.",
+                token_count=25, embedding=[0.0] * 1024,
+            ),
+            Chunk(
+                document_id=setbacks.id, ordinal=0,
+                content="Land application of manure must observe separation distances from a residence.",
+                token_count=12, embedding=[0.0] * 1024,
+            ),
+        ])
+        db.commit()
+
+        results = hybrid_search(db, "How much land do I need to spread manure from my pigs?", [1], ["manure"])
+        assert results[0].chunk.document_id == mmp.id
+        assert "manure management plan" in _expand_query("How many acres for pig manure?")[0]

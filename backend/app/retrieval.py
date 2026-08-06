@@ -22,6 +22,20 @@ def _tokens(text: str) -> set[str]:
     return {token for token in TOKEN_RE.findall(text.lower()) if len(token) > 2}
 
 
+def _expand_query(question: str) -> tuple[str, bool]:
+    tokens = _tokens(question)
+    acreage_intent = bool(tokens & {"land", "acre", "acres", "acreage"}) and bool(
+        tokens & {"manure", "spread", "apply", "application", "pig", "pigs", "hog", "hogs", "swine"}
+    )
+    if not acreage_intent:
+        return question, False
+    return (
+        question
+        + " manure management plan annual manure produced planned application rate total acres "
+        + "sufficient land base crop nitrogen phosphorus nutrient"
+    ), True
+
+
 def _cosine(a: list[float], b: list[float]) -> float:
     if not a or not b or len(a) != len(b):
         return 0.0
@@ -43,8 +57,9 @@ def hybrid_search(db: Session, question: str, source_tiers: list[int], topics: l
     if not candidates:
         return []
 
-    query_embedding = embed_texts([question])[0]
-    question_tokens = _tokens(question)
+    expanded_question, acreage_intent = _expand_query(question)
+    query_embedding = embed_texts([expanded_question])[0]
+    question_tokens = _tokens(expanded_question)
     ranked: list[RetrievedChunk] = []
     for chunk in candidates:
         chunk_tokens = _tokens(chunk.content)
@@ -52,7 +67,8 @@ def hybrid_search(db: Session, question: str, source_tiers: list[int], topics: l
         semantic_score = max(_cosine(query_embedding, list(chunk.embedding)), 0.0)
         jurisdiction_bonus = 0.04 if chunk.document.jurisdiction == "Iowa" else 0.0
         tier_bonus = 0.03 if chunk.document.source_tier == 1 else 0.0
-        score = semantic_score * 0.67 + keyword_score * 0.26 + jurisdiction_bonus + tier_bonus
+        intent_bonus = 0.14 if acreage_intent and "manure management plan" in chunk.document.title.lower() else 0.0
+        score = semantic_score * 0.67 + keyword_score * 0.26 + jurisdiction_bonus + tier_bonus + intent_bonus
         ranked.append(RetrievedChunk(chunk=chunk, score=score))
     ranked.sort(key=lambda item: item.score, reverse=True)
 
