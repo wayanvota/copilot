@@ -4,7 +4,7 @@ from datetime import datetime, timedelta, timezone
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Request, status
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, RedirectResponse
 from sqlalchemy import func, select, text
 from sqlalchemy.orm import Session
 
@@ -70,6 +70,11 @@ def require_app_access(authorization: str | None = Header(default=None)) -> None
 @app.exception_handler(Exception)
 async def unhandled_error(_: Request, exc: Exception):
     return JSONResponse(status_code=500, content={"detail": "The service could not complete this request safely."})
+
+
+@app.get("/", include_in_schema=False)
+def root():
+    return RedirectResponse(url="https://wayan.com/copilot/", status_code=307)
 
 
 @app.get("/healthz")

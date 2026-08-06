@@ -4,9 +4,17 @@ from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
+from app.config import settings
 from app.database import get_db
 from app.main import app
 from app.models import Base, Document
+
+
+def test_root_redirects_to_public_copilot():
+    client = TestClient(app)
+    response = client.get("/", follow_redirects=False)
+    assert response.status_code == 307
+    assert response.headers["location"] == "https://wayan.com/copilot/"
 
 
 def test_health_and_sources(tmp_path: Path):
@@ -40,5 +48,6 @@ def test_health_and_sources(tmp_path: Path):
 
 def test_feedback_validation_rejects_unknown_rating():
     client = TestClient(app)
-    response = client.post("/api/feedback", json={"answer_id": "abc", "rating": "maybe"})
+    headers = {"Authorization": f"Bearer {settings.app_access_token}"} if settings.app_access_token else {}
+    response = client.post("/api/feedback", json={"answer_id": "abc", "rating": "maybe"}, headers=headers)
     assert response.status_code == 422
