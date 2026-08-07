@@ -31,13 +31,20 @@ def _clean_text(text: str) -> str:
     text = re.sub(r"\r", "\n", text)
     text = re.sub(r"[ \t]+", " ", text)
     text = re.sub(r"\n{3,}", "\n\n", text)
+    # Repair table-cell spacing in the official Nebraska reportable-disease PDF.
+    text = re.sub(
+        r"Porcine R\s*eproductive and\s+X?\s*Respiratory S\s*yndr\s*om\s*e\s*\(\s*PR\s*R\s*S\s*\)",
+        "Porcine Reproductive and Respiratory Syndrome (PRRS)",
+        text,
+        flags=re.IGNORECASE,
+    )
     return text.strip()
 
 
 def fetch_source(url: str) -> str:
     if not _allowed_url(url):
         raise ValueError(f"Source host is not approved: {url}")
-    with httpx.Client(follow_redirects=True, timeout=35.0, headers={"User-Agent": "IowaPorkComplianceCopilot/0.1 source-indexer"}) as client:
+    with httpx.Client(follow_redirects=True, timeout=35.0, headers={"User-Agent": "NebraskaPorkComplianceCopilot/0.1 source-indexer"}) as client:
         response = client.get(url)
         response.raise_for_status()
         if not _allowed_url(str(response.url)):
@@ -147,7 +154,18 @@ def ingest_source(db: Session, source: dict) -> str:
     return "created" if len(document.versions) == 0 else "updated"
 
 
-def run(seed_if_empty: bool = False) -> None:
+def sync_registry(db: Session) -> int:
+    """Remove documents that are no longer in the approved Nebraska corpus."""
+    approved_urls = {source["url"] for source in APPROVED_SOURCES}
+    removed = 0
+    for document in db.scalars(select(Document).where(Document.url.not_in(approved_urls))).all():
+        db.delete(document)
+        removed += 1
+    db.commit()
+    return removed
+
+
+def run(seed_if_empty: bool = False, sync: bool = False) -> None:
     with SessionLocal() as db:
         if seed_if_empty and (db.scalar(select(func.count(Document.id))) or 0) > 0:
             print("Corpus already contains documents; skipping seed.")
@@ -162,6 +180,8 @@ def run(seed_if_empty: bool = False) -> None:
                 db.rollback()
                 results["failed"] += 1
                 print(f"Failed to ingest {source['title']}: {type(exc).__name__}: {exc}")
+        if sync and not results["failed"]:
+            results["removed"] = sync_registry(db)
         print(f"Ingestion complete: {results}")
         if results["failed"]:
             raise SystemExit(1)
@@ -171,5 +191,6 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--seed", action="store_true")
     parser.add_argument("--seed-if-empty", action="store_true")
+    parser.add_argument("--sync", action="store_true", help="Remove documents outside the approved Nebraska registry after a successful ingestion")
     args = parser.parse_args()
-    run(seed_if_empty=args.seed_if_empty)
+    run(seed_if_empty=args.seed_if_empty, sync=args.sync)

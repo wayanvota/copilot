@@ -21,7 +21,7 @@ def upgrade() -> None:
         sa.Column("title", sa.String(500), nullable=False),
         sa.Column("agency", sa.String(200), nullable=False),
         sa.Column("url", sa.Text(), nullable=False, unique=True),
-        sa.Column("jurisdiction", sa.String(100), nullable=False, server_default="Iowa"),
+        sa.Column("jurisdiction", sa.String(100), nullable=False, server_default="Nebraska"),
         sa.Column("topic", sa.String(100), nullable=False),
         sa.Column("source_tier", sa.Integer(), nullable=False),
         sa.Column("document_type", sa.String(100), nullable=False),

@@ -208,7 +208,7 @@ export default function Home() {
 
   useEffect(() => {
     try {
-      const session = JSON.parse(localStorage.getItem("iowa-copilot-session-v2") || "null");
+      const session = JSON.parse(localStorage.getItem("nebraska-copilot-session-v2") || "null");
       if (session) {
         setMessages(session.messages || []);
         setConversationId(session.conversationId);
@@ -216,9 +216,9 @@ export default function Home() {
         setTopic(session.topic || "");
         setFarmContext({ ...DEFAULT_FARM_CONTEXT, ...(session.farmContext || {}) });
       }
-      setSavedAnswers(JSON.parse(localStorage.getItem("iowa-copilot-saved-v2") || "[]"));
+      setSavedAnswers(JSON.parse(localStorage.getItem("nebraska-copilot-saved-v2") || "[]"));
     } catch {
-      localStorage.removeItem("iowa-copilot-session-v2");
+      localStorage.removeItem("nebraska-copilot-session-v2");
     }
     setHydrated(true);
     getSources().then(setSources).catch(() => undefined);
@@ -227,11 +227,11 @@ export default function Home() {
 
   useEffect(() => {
     if (!hydrated) return;
-    localStorage.setItem("iowa-copilot-session-v2", JSON.stringify({ messages, conversationId, sourceTiers, topic, farmContext }));
+    localStorage.setItem("nebraska-copilot-session-v2", JSON.stringify({ messages, conversationId, sourceTiers, topic, farmContext }));
   }, [hydrated, messages, conversationId, sourceTiers, topic, farmContext]);
 
   useEffect(() => {
-    if (hydrated) localStorage.setItem("iowa-copilot-saved-v2", JSON.stringify(savedAnswers));
+    if (hydrated) localStorage.setItem("nebraska-copilot-saved-v2", JSON.stringify(savedAnswers));
   }, [hydrated, savedAnswers]);
 
   useEffect(() => { endRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages, loading]);
@@ -280,8 +280,8 @@ export default function Home() {
   return (
     <main>
       <header className="topbar">
-        <a className="brand" href="#top" aria-label="Iowa Pork Compliance Copilot home">
-          <span className="brand-mark">IA</span><span><strong>Iowa Pork</strong><small>Compliance Copilot</small></span>
+        <a className="brand" href="#top" aria-label="Nebraska Pork Compliance Copilot home">
+          <span className="brand-mark">NE</span><span><strong>Nebraska Pork</strong><small>Compliance Copilot</small></span>
         </a>
       </header>
 
@@ -294,7 +294,7 @@ export default function Home() {
           <details className="control-panel">
             <summary>Farm facts <small>{profileFacts ? `${profileFacts} added` : "optional"}</small></summary>
             <div className="form-grid">
-              <label>County<input value={farmContext.county || ""} onChange={(event) => setContext("county", event.target.value || undefined)} placeholder="Example: Story" /></label>
+              <label>County<input value={farmContext.county || ""} onChange={(event) => setContext("county", event.target.value || undefined)} placeholder="Example: Madison" /></label>
               <label>Operation<select value={farmContext.operation_type} onChange={(event) => setContext("operation_type", event.target.value as FarmContext["operation_type"])}><option value="unknown">Not specified</option><option value="confinement">Confinement</option><option value="open_feedlot">Open feedlot</option><option value="mixed">Mixed</option></select></label>
               <label>Animal-unit capacity<input type="number" min="1" value={farmContext.animal_unit_capacity || ""} onChange={(event) => setContext("animal_unit_capacity", event.target.value ? Number(event.target.value) : undefined)} placeholder="If known" /></label>
               <label>Manure storage<select value={farmContext.manure_storage} onChange={(event) => setContext("manure_storage", event.target.value as FarmContext["manure_storage"])}><option value="unknown">Not specified</option><option value="formed">Formed structure</option><option value="unformed">Unformed structure</option><option value="lagoon">Lagoon</option><option value="dry">Dry manure</option></select></label>
@@ -337,14 +337,14 @@ export default function Home() {
             <div className="welcome">
               <p className="eyebrow orange"><MessageSquareText size={15} /> Ask the compliance copilot</p>
               <h1>Know the rule.<br /><span>See the source.</span></h1>
-              <p className="lede">Get an Iowa-specific answer, why it applies, which farm facts could change it, and the records you should keep.</p>
+              <p className="lede">Get a Nebraska-specific answer, why it applies, which farm facts could change it, and the records you should keep.</p>
               <form className="ask-box" onSubmit={submit}>
                 <Search size={21} aria-hidden="true" />
                 <textarea value={question} onChange={(event) => setQuestion(event.target.value)} placeholder="Ask about labor, manure, animal health, safety, or inspections…" aria-label="Compliance question" rows={3} onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); submit(); } }} />
                 <button type="submit" disabled={!question.trim()} aria-label="Ask question"><Send size={18} /></button>
               </form>
               <div className="starters" aria-label="Example questions">{STARTERS.map((starter) => <button key={starter} onClick={() => submit(undefined, starter)}>{starter}</button>)}</div>
-              <div className="source-strip"><span>Searches approved sources from</span><div><strong>IOWA DNR</strong><strong>USDA APHIS</strong><strong>U.S. DOL</strong><strong>OSHA</strong><strong>IOWA CODE</strong></div></div>
+              <div className="source-strip"><span>Searches approved sources from</span><div><strong>NEBRASKA DWEE</strong><strong>NEBRASKA NDA</strong><strong>USDA APHIS</strong><strong>U.S. DOL</strong><strong>NEBRASKA LAW</strong></div></div>
             </div>
           ) : (
             <div className="conversation">

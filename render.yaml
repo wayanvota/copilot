@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: iowa-pork-copilot-api
+    name: nebraska-pork-copilot-api
     runtime: python
     rootDir: backend
     plan: starter

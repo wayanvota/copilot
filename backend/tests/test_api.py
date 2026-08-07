@@ -41,8 +41,8 @@ def test_health_and_sources(tmp_path: Path):
     Base.metadata.create_all(engine)
     with TestingSession() as db:
         db.add(Document(
-            title="Official Test Source", agency="Iowa DNR", url="https://www.iowadnr.gov/test",
-            jurisdiction="Iowa", topic="manure", source_tier=1, document_type="guidance",
+            title="Official Test Source", agency="Nebraska DWEE", url="https://dwee.nebraska.gov/test",
+            jurisdiction="Nebraska", topic="manure", source_tier=1, document_type="guidance",
             content_hash="a" * 64,
         ))
         db.commit()
@@ -57,9 +57,10 @@ def test_health_and_sources(tmp_path: Path):
         health = client.get("/healthz")
         assert health.status_code == 200
         assert health.json()["corpus_documents"] == 1
+        assert health.json()["jurisdiction"] == "Nebraska"
         sources = client.get("/api/sources")
         assert sources.status_code == 200
-        assert sources.json()[0]["agency"] == "Iowa DNR"
+        assert sources.json()[0]["agency"] == "Nebraska DWEE"
     finally:
         app.dependency_overrides.clear()
 
@@ -84,7 +85,7 @@ def test_chat_accepts_a_structured_farm_profile(tmp_path: Path):
         client = TestClient(app)
         response = client.post("/api/chat", json={
             "question": "Do I need a construction permit?",
-            "farm_context": {"county": "Story", "operation_type": "confinement", "animal_unit_capacity": 1000},
+            "farm_context": {"county": "Madison", "operation_type": "confinement", "animal_unit_capacity": 1000},
         })
         assert response.status_code == 200
         assert response.json()["evidence_status"] == "insufficient"
@@ -98,8 +99,8 @@ def test_source_updates_only_reports_distinct_stored_versions(tmp_path: Path):
     Base.metadata.create_all(engine)
     with TestingSession() as db:
         document = Document(
-            title="Versioned Source", agency="Iowa DNR", url="https://www.iowadnr.gov/versioned",
-            jurisdiction="Iowa", topic="manure", source_tier=1, document_type="guidance", content_hash="b" * 64,
+            title="Versioned Source", agency="Nebraska DWEE", url="https://dwee.nebraska.gov/versioned",
+            jurisdiction="Nebraska", topic="manure", source_tier=1, document_type="guidance", content_hash="b" * 64,
         )
         db.add(document)
         db.flush()

@@ -20,7 +20,7 @@ from .schemas import (
 app = FastAPI(
     title=settings.app_name,
     version="0.1.0",
-    description="Evidence-constrained compliance decision support for Iowa pork producers.",
+    description="Evidence-constrained compliance decision support for Nebraska pork producers.",
     docs_url="/api/docs" if settings.environment != "production" else None,
     redoc_url=None,
 )
@@ -74,7 +74,7 @@ def health(db: Session = Depends(get_db)):
     try:
         db.execute(text("SELECT 1"))
         document_count = db.scalar(select(func.count(Document.id))) or 0
-        return {"status": "ok", "database": "ok", "corpus_documents": document_count, "model": settings.openai_chat_model}
+        return {"status": "ok", "database": "ok", "jurisdiction": "Nebraska", "corpus_documents": document_count, "model": settings.openai_chat_model}
     except Exception:
         raise HTTPException(status_code=503, detail="Database unavailable")
 

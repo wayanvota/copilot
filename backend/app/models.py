@@ -29,7 +29,7 @@ class Document(Base):
     title: Mapped[str] = mapped_column(String(500))
     agency: Mapped[str] = mapped_column(String(200))
     url: Mapped[str] = mapped_column(Text, unique=True)
-    jurisdiction: Mapped[str] = mapped_column(String(100), default="Iowa")
+    jurisdiction: Mapped[str] = mapped_column(String(100), default="Nebraska")
     topic: Mapped[str] = mapped_column(String(100), index=True)
     source_tier: Mapped[int] = mapped_column(Integer, index=True)
     document_type: Mapped[str] = mapped_column(String(100))

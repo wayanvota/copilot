@@ -1,30 +1,34 @@
-# Iowa Pork Compliance Copilot
+# Nebraska Pork Compliance Copilot
 
-An evidence-constrained compliance assistant for Iowa pork producers. The frontend exports to static files for FTP hosting. The FastAPI backend runs on Render with Neon Postgres and pgvector.
+An evidence-constrained compliance assistant for Nebraska pork producers. The static Next.js frontend is designed for FTP hosting at `wayan.com/copilot/`. The FastAPI backend runs on Render with Neon Postgres and pgvector.
+
+## What producers receive
+
+The copilot answers natural-language questions about Nebraska livestock-waste permits, manure management, animal health, labor, worker safety, and destination-market requirements. Each supported claim links to the source excerpt used to make it. Missing farm facts, conflicting authorities, and missing evidence remain visible.
+
+The approved corpus prioritizes the Nebraska Department of Water, Energy, and Environment, Nebraska Department of Agriculture, Nebraska Legislature, Nebraska Department of Labor, Nebraska Extension, USDA APHIS, U.S. Department of Labor, OSHA, FDA, and other official sources that apply to Nebraska operations.
 
 ## Trust controls
 
-- Answers are generated only from retrieved, approved-source excerpts.
-- The model may cite only server-issued chunk IDs. The API resolves those IDs to official URLs.
-- Every answer claim has citations or is rejected.
-- Conflicting evidence is preserved and disclosed.
-- Retrieved pages are treated as untrusted data, so document text cannot override system instructions.
-- Low-evidence questions return an explicit inability to verify, not a guessed answer.
-- Applicability uses `high`, `medium`, `low`, or `unknown`, never a numeric score.
-- Missing source evidence is distinguished from missing farm facts.
-- Optional farm context is user-provided context, never regulatory evidence.
+- Answers use only retrieved excerpts from the approved registry.
+- The model may cite only server-issued chunk IDs, which the API resolves to source links.
+- Uncited claims are removed before the answer reaches the producer.
+- Statutes and regulations are distinguished from guidance and recommended practice.
+- Applicability is reported as high, medium, low, or unknown with an explanation.
+- Farm facts are user context, never regulatory evidence.
+- A source gap produces an explicit inability to verify rather than a guessed answer.
 
-This is decision support, not legal, veterinary, or emergency advice.
+This is compliance decision support, not legal advice or veterinary diagnosis.
 
 ## Repository layout
 
-- `frontend/`: Next.js app configured for static export to `frontend/out/`
-- `backend/`: FastAPI API, Postgres schema, hybrid retrieval, ingestion, and tests
-- `render.yaml`: Render Blueprint for the API
+- `frontend/`: static Next.js frontend
+- `backend/`: FastAPI API, ingestion, hybrid retrieval, database schema, tests, and evaluation questions
+- `backend/app/source_registry.py`: approved Nebraska-first source registry
+- `backend/corpus/manual/`: reproducible copies of official PDFs
+- `render.yaml`: Render service definition
 
 ## Local setup
-
-### Backend
 
 ```bash
 cd backend
@@ -37,10 +41,6 @@ python -m app.ingest --seed-if-empty
 uvicorn app.main:app --reload --port 8000
 ```
 
-The root `.env.local` created by Codex is intentionally ignored. Copy its `OPENAI_API_KEY` into `backend/.env` without committing it.
-
-### Frontend
-
 ```bash
 cd frontend
 cp .env.example .env.local
@@ -48,44 +48,25 @@ npm install
 npm run dev
 ```
 
-Set `NEXT_PUBLIC_API_BASE_URL` to the Render API URL. For a static production build:
+No API key is shipped to the browser. Set `NEXT_PUBLIC_API_BASE_URL` to the Render API URL before the static production build.
+
+## Corpus migration and updates
+
+After approving embedding charges, use the sync mode when changing jurisdictions:
 
 ```bash
-npm run build
+python -m app.ingest --sync
 ```
 
-Upload the contents of `frontend/out/` to `wayan.com/copilot/`.
-
-## Production setup
-
-1. Create a Neon Postgres database and enable the `vector` extension.
-2. Create the Render service from `render.yaml`.
-3. Set `DATABASE_URL`, `OPENAI_API_KEY`, `CORS_ORIGINS`, and `ADMIN_API_KEY` in Render.
-4. Run the Render pre-deploy command to migrate the database.
-5. After separately approving OpenAI embedding charges, run `python -m app.ingest --seed-if-empty` once to seed the approved starter corpus.
-6. Build the frontend with the final Render URL and upload `frontend/out/` by FTP.
-
-No API key is ever shipped to the browser.
+The command ingests the registered Nebraska and applicable federal sources, then removes database documents that are no longer approved. It only prunes the old corpus if every registered source completes without an ingestion failure.
 
 ## API
 
 - `POST /api/chat`: retrieve evidence and return a cited answer
-- `GET /api/sources`: list approved corpus sources
-- `GET /api/updates`: list sources with multiple distinct stored versions
+- `GET /api/sources`: list active corpus sources
+- `GET /api/updates`: list sources with distinct stored versions
 - `POST /api/feedback`: record answer feedback
 - `POST /api/bookmarks`: save an answer
 - `GET /api/conversations/{id}`: retrieve conversation history
-- `GET /api/admin/summary`: corpus and usage health, requires `X-Admin-Key`
-- `GET /healthz`: liveness and dependency status
-
-## Corpus updates
-
-Edit `backend/app/source_registry.py`, then run:
-
-```bash
-python -m app.ingest --seed
-```
-
-The starter registry contains official Iowa DNR, U.S. Department of Labor, USDA APHIS, OSHA, FDA, and Iowa Legislature sources. Each fetched source is stored with a content hash and retrieval timestamp for version tracking.
-
-See `PRD_COMPARISON.md` for the current requirement-by-requirement assessment and remaining priorities.
+- `GET /api/admin/summary`: corpus and usage health, protected by `X-Admin-Key`
+- `GET /healthz`: service, database, jurisdiction, and corpus status
