@@ -1,5 +1,6 @@
 import time
 from collections import defaultdict, deque
+from threading import Thread
 from datetime import datetime, timedelta, timezone
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Request, status
@@ -10,8 +11,10 @@ from sqlalchemy.orm import Session, selectinload
 
 from .config import settings
 from .copilot import answer_question
-from .database import get_db
+from .database import SessionLocal, get_db
+from .ingest import run as run_ingestion
 from .models import Bookmark, Chunk, Conversation, Document, Feedback, Message, QueryLog
+from .source_registry import APPROVED_SOURCES
 from .schemas import (
     BookmarkRequest, ChatRequest, ChatResponse, ConversationMessageResponse, ConversationResponse,
     FeedbackRequest, SavedResponse, SourceResponse, SourceUpdateResponse,
@@ -33,6 +36,31 @@ app.add_middleware(
 )
 
 request_windows: dict[str, deque[float]] = defaultdict(deque)
+
+
+def _production_corpus_needs_sync() -> bool:
+    """Return true only when production differs from the approved source registry."""
+    if settings.environment != "production":
+        return False
+    approved_urls = {source["url"] for source in APPROVED_SOURCES}
+    with SessionLocal() as db:
+        stored_urls = set(db.scalars(select(Document.url)).all())
+    return stored_urls != approved_urls
+
+
+def _sync_production_corpus() -> None:
+    try:
+        run_ingestion(sync=True)
+    except BaseException as exc:
+        # Keep the API available and retain the prior corpus if a source or
+        # embedding provider is temporarily unavailable. A later restart retries.
+        print(f"Production corpus synchronization failed: {type(exc).__name__}: {exc}")
+
+
+@app.on_event("startup")
+def synchronize_approved_corpus() -> None:
+    if _production_corpus_needs_sync():
+        Thread(target=_sync_production_corpus, name="corpus-sync", daemon=True).start()
 
 
 @app.middleware("http")
