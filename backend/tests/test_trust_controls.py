@@ -21,17 +21,18 @@ def answer_with(citation: str) -> GeneratedAnswer:
 
 
 def test_unretrieved_citation_withholds_answer():
-    answer = _validate_citations(answer_with("invented"), {"retrieved"})
+    answer = _validate_citations(answer_with("invented"), {"S1": "retrieved"})
     assert answer.evidence_status == "insufficient"
     assert answer.short_answer[0].citations == []
     assert "could not verify" in answer.short_answer[0].text.lower()
 
 
 def test_uncited_claim_is_omitted_without_discarding_cited_answer():
-    answer = answer_with("retrieved")
+    answer = answer_with("S1")
     answer.rules.append(CitedClaim(text="Unsupported extra claim.", citations=[]))
-    checked = _validate_citations(answer, {"retrieved"})
+    checked = _validate_citations(answer, {"S1": "retrieved"})
     assert checked.evidence_status == "verified"
+    assert checked.short_answer[0].citations == ["retrieved"]
     assert checked.rules == []
 
 
@@ -44,6 +45,7 @@ def test_chunk_ids_are_removed_from_visible_claim_text():
     )
     assert _clean_claim_text(leaked) == "A cited rule applies."
     assert _clean_claim_text("A cited rule applies. 【】") == "A cited rule applies."
+    assert _clean_claim_text("A cited rule applies [S1, S2].") == "A cited rule applies."
 
 
 def test_farm_context_is_explicitly_labeled_as_user_context():
@@ -54,7 +56,7 @@ def test_farm_context_is_explicitly_labeled_as_user_context():
 
 
 def test_response_schema_requires_every_declared_property():
-    schema = _strict_response_schema()
+    schema = _strict_response_schema(["S1", "S2"])
 
     def check(node: object) -> None:
         if isinstance(node, dict):
@@ -69,6 +71,8 @@ def test_response_schema_requires_every_declared_property():
                 check(value)
 
     check(schema)
+    citation_items = schema["$defs"]["CitedClaim"]["properties"]["citations"]["items"]
+    assert citation_items["enum"] == ["S1", "S2"]
 
 
 def test_approved_source_hosts_only():

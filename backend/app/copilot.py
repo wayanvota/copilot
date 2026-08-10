@@ -25,8 +25,8 @@ Authority and scope:
 
 Evidence rules:
 - Never invent or infer a law, regulation, form, date, penalty, requirement, citation, or exception.
-- Cite each substantive claim with one or more exact CHUNK_ID values from the evidence.
-- Put CHUNK_ID values only in each claim's citations array. Never place citation IDs, citation arrays, or bracket markers in the visible text field.
+- Cite each substantive claim with one or more exact SOURCE_ID aliases from the evidence.
+- Put SOURCE_ID aliases only in each claim's citations array. Never place citation IDs, citation arrays, or bracket markers in the visible text field.
 - Every item in short_answer, why, rules, and documentation must contain at least one citation. Omit any item the evidence does not support.
 - Do not output URLs. The server resolves chunk IDs to source links.
 - Distinguish statutes and regulations from guidance and recommended practice.
@@ -46,7 +46,7 @@ Writing rules:
 """
 
 
-def _strict_response_schema() -> dict:
+def _strict_response_schema(citation_aliases: list[str] | None = None) -> dict:
     """Make Pydantic's schema satisfy the Responses API strict-mode contract."""
     schema = GeneratedAnswer.model_json_schema()
 
@@ -63,6 +63,9 @@ def _strict_response_schema() -> dict:
                 require_every_property(value)
 
     require_every_property(schema)
+    if citation_aliases:
+        citations = schema["$defs"]["CitedClaim"]["properties"]["citations"]
+        citations["items"] = {"type": "string", "enum": citation_aliases}
     return schema
 
 
@@ -80,15 +83,21 @@ def _history(db: Session, conversation_id: str) -> str:
     return "\n".join(lines) or "No prior conversation."
 
 
-def _evidence_context(results: list[RetrievedChunk]) -> str:
+def _source_aliases(results: list[RetrievedChunk]) -> dict[str, str]:
+    return {f"S{index}": result.chunk.id for index, result in enumerate(results, start=1)}
+
+
+def _evidence_context(results: list[RetrievedChunk], aliases: dict[str, str]) -> str:
+    aliases_by_chunk = {chunk_id: alias for alias, chunk_id in aliases.items()}
     blocks = []
     for result in results:
         chunk = result.chunk
         doc = chunk.document
+        alias = aliases_by_chunk[chunk.id]
         blocks.append(
             "\n".join(
                 [
-                    f"<EVIDENCE CHUNK_ID=\"{chunk.id}\">",
+                    f"<EVIDENCE SOURCE_ID=\"{alias}\">",
                     f"TITLE: {doc.title}",
                     f"AGENCY: {doc.agency}",
                     f"JURISDICTION: {doc.jurisdiction}",
@@ -123,26 +132,31 @@ _RAW_CHUNK_ID = re.compile(
     r"[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}",
     re.IGNORECASE,
 )
+_SOURCE_ALIAS_ARTIFACT = re.compile(r"\s*\[\s*S\d+(?:\s*,\s*S\d+)*\s*\]", re.IGNORECASE)
 
 
 def _clean_claim_text(text: str) -> str:
     """Remove model-visible chunk IDs. Citation chips are rendered separately."""
     cleaned = _CITATION_ARTIFACT.sub("", text)
     cleaned = _RAW_CHUNK_ID.sub("", cleaned)
+    cleaned = _SOURCE_ALIAS_ARTIFACT.sub("", cleaned)
     cleaned = re.sub(r"\[\s*(?:\"\"\s*,?\s*)+\]\s*\}?,?\s*\{?", "", cleaned)
     cleaned = re.sub(r"(?:\[\s*\]|【\s*】)", "", cleaned)
     cleaned = cleaned.replace("},{", "")
     return re.sub(r"\s+([,.;:])", r"\1", cleaned).strip()
 
 
-def _validate_citations(answer: GeneratedAnswer, valid_ids: set[str]) -> GeneratedAnswer:
+def _validate_citations(answer: GeneratedAnswer, aliases: dict[str, str]) -> GeneratedAnswer:
     groups = [answer.short_answer, answer.why, answer.rules, answer.documentation]
     for group in groups:
         for claim in group:
             claim.text = _clean_claim_text(claim.text)
-    invalid = {citation for group in groups for claim in group for citation in claim.citations if citation not in valid_ids}
+    invalid = {citation for group in groups for claim in group for citation in claim.citations if citation not in aliases}
     if invalid:
         return _insufficient_answer("The generated answer referenced evidence that was not retrieved, so it was withheld.")
+    for group in groups:
+        for claim in group:
+            claim.citations = [aliases[citation] for citation in claim.citations]
     if answer.evidence_status != "insufficient":
         uncited_count = sum(1 for group in groups for claim in group if not claim.citations)
         answer.short_answer = [claim for claim in answer.short_answer if claim.citations]
@@ -164,7 +178,7 @@ def _farm_context(context: FarmContext | None) -> str:
     return "\n".join(stated) or "No specific farm facts were provided."
 
 
-def _generate(client: OpenAI, question: str, history: str, results: list[RetrievedChunk], conversation_id: str, farm_context: FarmContext | None) -> GeneratedAnswer:
+def _generate(client: OpenAI, question: str, history: str, results: list[RetrievedChunk], conversation_id: str, farm_context: FarmContext | None, aliases: dict[str, str]) -> GeneratedAnswer:
     prompt = f"""PRIOR CONVERSATION (context only, not evidence):
 <CONVERSATION>
 {history}
@@ -181,9 +195,9 @@ USER-PROVIDED FARM FACTS (context only, not evidence):
 </FARM_CONTEXT>
 
 RETRIEVED EVIDENCE:
-{_evidence_context(results)}
+{_evidence_context(results, aliases)}
 
-Return the required structured answer. Preserve uncertainty and cite only CHUNK_ID values shown above."""
+Return the required structured answer. Preserve uncertainty and cite only SOURCE_ID aliases shown above."""
     response = client.responses.create(
         model=settings.openai_chat_model,
         instructions=SYSTEM_PROMPT,
@@ -195,7 +209,7 @@ Return the required structured answer. Preserve uncertainty and cite only CHUNK_
                 "type": "json_schema",
                 "name": "compliance_answer",
                 "strict": True,
-                "schema": _strict_response_schema(),
+                "schema": _strict_response_schema(list(aliases)),
             },
         },
         max_output_tokens=3500,
@@ -256,8 +270,9 @@ def answer_question(db: Session, request: ChatRequest) -> ChatResponse:
         if not results:
             generated = _insufficient_answer("No approved source excerpts matched the question.")
         else:
-            generated = _generate(get_client(), request.question, prior_history, results, conversation.id, request.farm_context)
-            generated = _validate_citations(generated, {result.chunk.id for result in results})
+            aliases = _source_aliases(results)
+            generated = _generate(get_client(), request.question, prior_history, results, conversation.id, request.farm_context, aliases)
+            generated = _validate_citations(generated, aliases)
     except Exception as exc:
         error_code = type(exc).__name__
         raise
