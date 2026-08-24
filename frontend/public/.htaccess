@@ -15,4 +15,11 @@
   ExpiresByType image/svg+xml "access plus 1 year"
 </IfModule>
 
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  RewriteCond %{REQUEST_FILENAME} !-f
+  RewriteCond %{REQUEST_FILENAME} !-d
+  RewriteRule ^ - [R=404,L]
+</IfModule>
+
 ErrorDocument 404 /copilot/404.html
