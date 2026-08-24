@@ -13,7 +13,15 @@ from .config import settings
 from .embeddings import get_client
 from .models import Conversation, Message, QueryLog, uuid4
 from .retrieval import RetrievedChunk, hybrid_search
-from .schemas import Applicability, ChatRequest, ChatResponse, Citation, CitedClaim, FarmContext, GeneratedAnswer
+from .schemas import (
+    Applicability,
+    ChatRequest,
+    ChatResponse,
+    Citation,
+    CitedClaim,
+    FarmContext,
+    GeneratedAnswer,
+)
 
 SYSTEM_PROMPT = """You are an evidence-constrained compliance assistant for Nebraska pork producers.
 
@@ -71,20 +79,27 @@ def _strict_response_schema(citation_aliases: list[str] | None = None) -> dict:
 
 def _history(db: Session, conversation_id: str) -> str:
     messages = db.scalars(
-        select(Message).where(Message.conversation_id == conversation_id).order_by(Message.created_at.desc()).limit(6)
+        select(Message)
+        .where(Message.conversation_id == conversation_id)
+        .order_by(Message.created_at.desc())
+        .limit(6)
     ).all()
     lines: list[str] = []
     for message in reversed(messages):
         if message.role == "user":
             lines.append(f"USER: {message.content.get('question', '')}")
         elif message.role == "assistant":
-            summary = " ".join(item.get("text", "") for item in message.content.get("short_answer", []))
+            summary = " ".join(
+                item.get("text", "") for item in message.content.get("short_answer", [])
+            )
             lines.append(f"ASSISTANT: {summary}")
     return "\n".join(lines) or "No prior conversation."
 
 
 def _source_aliases(results: list[RetrievedChunk]) -> dict[str, str]:
-    return {f"S{index}": result.chunk.id for index, result in enumerate(results, start=1)}
+    return {
+        f"S{index}": result.chunk.id for index, result in enumerate(results, start=1)
+    }
 
 
 def _evidence_context(results: list[RetrievedChunk], aliases: dict[str, str]) -> str:
@@ -97,7 +112,7 @@ def _evidence_context(results: list[RetrievedChunk], aliases: dict[str, str]) ->
         blocks.append(
             "\n".join(
                 [
-                    f"<EVIDENCE SOURCE_ID=\"{alias}\">",
+                    f'<EVIDENCE SOURCE_ID="{alias}">',
                     f"TITLE: {doc.title}",
                     f"AGENCY: {doc.agency}",
                     f"JURISDICTION: {doc.jurisdiction}",
@@ -116,10 +131,25 @@ def _evidence_context(results: list[RetrievedChunk], aliases: dict[str, str]) ->
 
 def _insufficient_answer(reason: str) -> GeneratedAnswer:
     return GeneratedAnswer(
-        short_answer=[CitedClaim(text="I could not verify this from the available authoritative sources.", citations=[])],
-        why=[], rules=[], documentation=[], related_questions=["Which agency, permit, job task, or operation detail should be checked next?"],
-        applicability=Applicability(level="unknown", explanation="The retrieved evidence was not sufficient to apply a rule to the stated facts."),
-        evidence_status="insufficient", missing_facts=[], limitations=[reason],
+        short_answer=[
+            CitedClaim(
+                text="I could not verify this from the available authoritative sources.",
+                citations=[],
+            )
+        ],
+        why=[],
+        rules=[],
+        documentation=[],
+        related_questions=[
+            "Which agency, permit, job task, or operation detail should be checked next?"
+        ],
+        applicability=Applicability(
+            level="unknown",
+            explanation="The retrieved evidence was not sufficient to apply a rule to the stated facts.",
+        ),
+        evidence_status="insufficient",
+        missing_facts=[],
+        limitations=[reason],
     )
 
 
@@ -132,7 +162,10 @@ _RAW_CHUNK_ID = re.compile(
     r"[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}",
     re.IGNORECASE,
 )
-_SOURCE_ALIAS_ARTIFACT = re.compile(r"\s*\[\s*S\d+(?:\s*,\s*S\d+)*\s*\]", re.IGNORECASE)
+_SOURCE_ALIAS_ARTIFACT = re.compile(
+    r"\s*(?:\[\s*|【\s*)S\d+(?:\s*,\s*S\d+)*(?:\s*\]|\s*】)",
+    re.IGNORECASE,
+)
 
 
 def _clean_claim_text(text: str) -> str:
@@ -146,27 +179,61 @@ def _clean_claim_text(text: str) -> str:
     return re.sub(r"\s+([,.;:])", r"\1", cleaned).strip()
 
 
-def _validate_citations(answer: GeneratedAnswer, aliases: dict[str, str]) -> GeneratedAnswer:
+def _validate_citations(
+    answer: GeneratedAnswer, aliases: dict[str, str]
+) -> GeneratedAnswer:
     groups = [answer.short_answer, answer.why, answer.rules, answer.documentation]
     for group in groups:
         for claim in group:
             claim.text = _clean_claim_text(claim.text)
-    invalid = {citation for group in groups for claim in group for citation in claim.citations if citation not in aliases}
+    answer.missing_facts = [
+        cleaned for item in answer.missing_facts if (cleaned := _clean_claim_text(item))
+    ]
+    answer.limitations = [
+        cleaned for item in answer.limitations if (cleaned := _clean_claim_text(item))
+    ]
+    answer.related_questions = [
+        cleaned
+        for item in answer.related_questions
+        if (cleaned := _clean_claim_text(item))
+    ]
+    answer.applicability.explanation = _clean_claim_text(
+        answer.applicability.explanation
+    )
+    invalid = {
+        citation
+        for group in groups
+        for claim in group
+        for citation in claim.citations
+        if citation not in aliases
+    }
     if invalid:
-        return _insufficient_answer("The generated answer referenced evidence that was not retrieved, so it was withheld.")
+        return _insufficient_answer(
+            "The generated answer referenced evidence that was not retrieved, so it was withheld."
+        )
     for group in groups:
         for claim in group:
             claim.citations = [aliases[citation] for citation in claim.citations]
     if answer.evidence_status != "insufficient":
-        uncited_count = sum(1 for group in groups for claim in group if not claim.citations)
-        answer.short_answer = [claim for claim in answer.short_answer if claim.citations]
+        uncited_count = sum(
+            1 for group in groups for claim in group if not claim.citations
+        )
+        answer.short_answer = [
+            claim for claim in answer.short_answer if claim.citations
+        ]
         answer.why = [claim for claim in answer.why if claim.citations]
         answer.rules = [claim for claim in answer.rules if claim.citations]
-        answer.documentation = [claim for claim in answer.documentation if claim.citations]
+        answer.documentation = [
+            claim for claim in answer.documentation if claim.citations
+        ]
         if not answer.short_answer:
-            return _insufficient_answer("No generated short answer had a verifiable citation, so the answer was withheld.")
+            return _insufficient_answer(
+                "No generated short answer had a verifiable citation, so the answer was withheld."
+            )
         if uncited_count:
-            answer.limitations.append(f"{uncited_count} uncited generated claim(s) were omitted from this answer.")
+            answer.limitations.append(
+                f"{uncited_count} uncited generated claim(s) were omitted from this answer."
+            )
     return answer
 
 
@@ -174,11 +241,23 @@ def _farm_context(context: FarmContext | None) -> str:
     if context is None:
         return "No farm profile was provided."
     facts = context.model_dump(exclude_none=True)
-    stated = [f"{key.replace('_', ' ')}: {value}" for key, value in facts.items() if value != "unknown"]
+    stated = [
+        f"{key.replace('_', ' ')}: {value}"
+        for key, value in facts.items()
+        if value != "unknown"
+    ]
     return "\n".join(stated) or "No specific farm facts were provided."
 
 
-def _generate(client: OpenAI, question: str, history: str, results: list[RetrievedChunk], conversation_id: str, farm_context: FarmContext | None, aliases: dict[str, str]) -> GeneratedAnswer:
+def _generate(
+    client: OpenAI,
+    question: str,
+    history: str,
+    results: list[RetrievedChunk],
+    conversation_id: str,
+    farm_context: FarmContext | None,
+    aliases: dict[str, str],
+) -> GeneratedAnswer:
     prompt = f"""PRIOR CONVERSATION (context only, not evidence):
 <CONVERSATION>
 {history}
@@ -217,14 +296,20 @@ Return the required structured answer. Preserve uncertainty and cite only SOURCE
         store=False,
     )
     if not response.output_text:
-        return _insufficient_answer("The answer model did not return a usable response.")
+        return _insufficient_answer(
+            "The answer model did not return a usable response."
+        )
     try:
         return GeneratedAnswer.model_validate_json(response.output_text)
     except (ValidationError, json.JSONDecodeError):
-        return _insufficient_answer("The answer model returned an invalid evidence structure.")
+        return _insufficient_answer(
+            "The answer model returned an invalid evidence structure."
+        )
 
 
-def _citations(answer: GeneratedAnswer, results: list[RetrievedChunk]) -> list[Citation]:
+def _citations(
+    answer: GeneratedAnswer, results: list[RetrievedChunk]
+) -> list[Citation]:
     claims = answer.short_answer + answer.why + answer.rules + answer.documentation
     used_ids = {citation for claim in claims for citation in claim.citations}
     citations: list[Citation] = []
@@ -238,10 +323,18 @@ def _citations(answer: GeneratedAnswer, results: list[RetrievedChunk]) -> list[C
             excerpt = excerpt.rsplit(" ", 1)[0] + "…"
         citations.append(
             Citation(
-                id=chunk.id, title=doc.title, agency=doc.agency, url=doc.url,
-                effective_date=doc.effective_date.isoformat() if doc.effective_date else None,
-                publication_date=doc.publication_date.isoformat() if doc.publication_date else None,
-                retrieved_at=doc.retrieved_at, excerpt=excerpt,
+                id=chunk.id,
+                title=doc.title,
+                agency=doc.agency,
+                url=doc.url,
+                effective_date=doc.effective_date.isoformat()
+                if doc.effective_date
+                else None,
+                publication_date=doc.publication_date.isoformat()
+                if doc.publication_date
+                else None,
+                retrieved_at=doc.retrieved_at,
+                excerpt=excerpt,
             )
         )
     return citations
@@ -249,7 +342,11 @@ def _citations(answer: GeneratedAnswer, results: list[RetrievedChunk]) -> list[C
 
 def answer_question(db: Session, request: ChatRequest) -> ChatResponse:
     started = time.perf_counter()
-    conversation = db.get(Conversation, request.conversation_id) if request.conversation_id else None
+    conversation = (
+        db.get(Conversation, request.conversation_id)
+        if request.conversation_id
+        else None
+    )
     if conversation is None:
         conversation = Conversation()
         db.add(conversation)
@@ -257,8 +354,17 @@ def answer_question(db: Session, request: ChatRequest) -> ChatResponse:
 
     prior_history = _history(db, conversation.id)
     # Farm context is used for this answer but is deliberately not copied into server conversation history.
-    db.add(Message(conversation_id=conversation.id, role="user", content={"question": request.question}))
-    db.flush()
+    db.add(
+        Message(
+            conversation_id=conversation.id,
+            role="user",
+            content={"question": request.question},
+        )
+    )
+    # Do not hold a database write transaction open while retrieval and the model
+    # call run. This keeps concurrent producer questions from blocking each other,
+    # especially in the SQLite development environment.
+    db.commit()
     results: list[RetrievedChunk] = []
     error_code: str | None = None
     try:
@@ -266,12 +372,24 @@ def answer_question(db: Session, request: ChatRequest) -> ChatResponse:
         context_text = _farm_context(request.farm_context)
         if request.farm_context is not None and "No specific" not in context_text:
             retrieval_question = f"{request.question}\nFarm context: {context_text}"
-        results = hybrid_search(db, retrieval_question, request.source_tiers, request.topics)
+        results = hybrid_search(
+            db, retrieval_question, request.source_tiers, request.topics
+        )
         if not results:
-            generated = _insufficient_answer("No approved source excerpts matched the question.")
+            generated = _insufficient_answer(
+                "No approved source excerpts matched the question."
+            )
         else:
             aliases = _source_aliases(results)
-            generated = _generate(get_client(), request.question, prior_history, results, conversation.id, request.farm_context, aliases)
+            generated = _generate(
+                get_client(),
+                request.question,
+                prior_history,
+                results,
+                conversation.id,
+                request.farm_context,
+                aliases,
+            )
             generated = _validate_citations(generated, aliases)
     except Exception as exc:
         error_code = type(exc).__name__
@@ -279,19 +397,41 @@ def answer_question(db: Session, request: ChatRequest) -> ChatResponse:
     finally:
         latency_ms = int((time.perf_counter() - started) * 1000)
         if error_code:
-            db.add(QueryLog(conversation_id=conversation.id, question=request.question, retrieved_chunk_ids=[result.chunk.id for result in results], latency_ms=latency_ms, evidence_status="failed", error_code=error_code))
+            db.add(
+                QueryLog(
+                    conversation_id=conversation.id,
+                    question=request.question,
+                    retrieved_chunk_ids=[result.chunk.id for result in results],
+                    latency_ms=latency_ms,
+                    evidence_status="failed",
+                    error_code=error_code,
+                )
+            )
             db.commit()
 
     answer_id = uuid4()
     response = ChatResponse(
-        id=answer_id, conversation_id=conversation.id, citations=_citations(generated, results),
-        created_at=datetime.now(timezone.utc), **generated.model_dump(),
+        id=answer_id,
+        conversation_id=conversation.id,
+        citations=_citations(generated, results),
+        created_at=datetime.now(timezone.utc),
+        **generated.model_dump(),
     )
-    db.add(Message(conversation_id=conversation.id, role="assistant", content=response.model_dump(mode="json")))
-    db.add(QueryLog(
-        conversation_id=conversation.id, question=request.question,
-        retrieved_chunk_ids=[result.chunk.id for result in results],
-        latency_ms=int((time.perf_counter() - started) * 1000), evidence_status=generated.evidence_status,
-    ))
+    db.add(
+        Message(
+            conversation_id=conversation.id,
+            role="assistant",
+            content=response.model_dump(mode="json"),
+        )
+    )
+    db.add(
+        QueryLog(
+            conversation_id=conversation.id,
+            question=request.question,
+            retrieved_chunk_ids=[result.chunk.id for result in results],
+            latency_ms=int((time.perf_counter() - started) * 1000),
+            evidence_status=generated.evidence_status,
+        )
+    )
     db.commit()
     return response

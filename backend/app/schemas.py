@@ -10,9 +10,13 @@ class StrictModel(BaseModel):
 
 class FarmContext(StrictModel):
     county: str | None = Field(default=None, max_length=100)
-    operation_type: Literal["confinement", "open_feedlot", "mixed", "unknown"] = "unknown"
+    operation_type: Literal["confinement", "open_feedlot", "mixed", "unknown"] = (
+        "unknown"
+    )
     animal_unit_capacity: int | None = Field(default=None, ge=1, le=1_000_000)
-    manure_storage: Literal["formed", "unformed", "lagoon", "dry", "unknown"] = "unknown"
+    manure_storage: Literal["formed", "unformed", "lagoon", "dry", "unknown"] = (
+        "unknown"
+    )
     workers: Literal["family", "nonfamily", "both", "unknown"] = "unknown"
     sells_into_california: Literal["yes", "no", "unknown"] = "unknown"
 
@@ -30,6 +34,32 @@ class ChatRequest(StrictModel):
         cleaned = sorted(set(value))
         if not cleaned or any(tier not in (1, 2, 3) for tier in cleaned):
             raise ValueError("source_tiers must include one or more of 1, 2, or 3")
+        return cleaned
+
+    @field_validator("question")
+    @classmethod
+    def normalize_question(cls, value: str) -> str:
+        cleaned = value.strip()
+        if len(cleaned) < 3:
+            raise ValueError(
+                "question must contain at least 3 non-whitespace characters"
+            )
+        return cleaned
+
+    @field_validator("topics")
+    @classmethod
+    def valid_topics(cls, value: list[str]) -> list[str]:
+        allowed = {
+            "permits",
+            "manure",
+            "labor",
+            "animal_health",
+            "safety",
+            "animal_welfare",
+        }
+        cleaned = sorted(set(value))
+        if len(cleaned) > 6 or any(topic not in allowed for topic in cleaned):
+            raise ValueError("topics contains an unsupported compliance topic")
         return cleaned
 
 

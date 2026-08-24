@@ -67,6 +67,6 @@ The command ingests the registered Nebraska and applicable federal sources, then
 - `GET /api/updates`: list sources with distinct stored versions
 - `POST /api/feedback`: record answer feedback
 - `POST /api/bookmarks`: save an answer
-- `GET /api/conversations/{id}`: retrieve conversation history
+- `GET /api/conversations/{id}`: retrieve conversation history, protected by `X-Admin-Key`
 - `GET /api/admin/summary`: corpus and usage health, protected by `X-Admin-Key`
 - `GET /healthz`: service, database, jurisdiction, and corpus status

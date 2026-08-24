@@ -1,7 +1,8 @@
 import time
 from collections import defaultdict, deque
-from threading import Thread
+from contextlib import asynccontextmanager
 from datetime import datetime, timedelta, timezone
+from threading import Thread
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Request, status
 from fastapi.middleware.cors import CORSMiddleware
@@ -14,11 +15,26 @@ from .copilot import answer_question
 from .database import SessionLocal, get_db
 from .ingest import run as run_ingestion
 from .models import Bookmark, Chunk, Conversation, Document, Feedback, Message, QueryLog
-from .source_registry import APPROVED_SOURCES
 from .schemas import (
-    BookmarkRequest, ChatRequest, ChatResponse, ConversationMessageResponse, ConversationResponse,
-    FeedbackRequest, SavedResponse, SourceResponse, SourceUpdateResponse,
+    BookmarkRequest,
+    ChatRequest,
+    ChatResponse,
+    ConversationMessageResponse,
+    ConversationResponse,
+    FeedbackRequest,
+    SavedResponse,
+    SourceResponse,
+    SourceUpdateResponse,
 )
+from .source_registry import APPROVED_SOURCES
+
+
+@asynccontextmanager
+async def lifespan(_: FastAPI):
+    if _production_corpus_needs_sync():
+        Thread(target=_sync_production_corpus, name="corpus-sync", daemon=True).start()
+    yield
+
 
 app = FastAPI(
     title=settings.app_name,
@@ -26,6 +42,7 @@ app = FastAPI(
     description="Evidence-constrained compliance decision support for Nebraska pork producers.",
     docs_url="/api/docs" if settings.environment != "production" else None,
     redoc_url=None,
+    lifespan=lifespan,
 )
 app.add_middleware(
     CORSMiddleware,
@@ -36,6 +53,7 @@ app.add_middleware(
 )
 
 request_windows: dict[str, deque[float]] = defaultdict(deque)
+MAX_REQUEST_BODY_BYTES = 32_768
 
 
 def _production_corpus_needs_sync() -> bool:
@@ -57,39 +75,69 @@ def _sync_production_corpus() -> None:
         print(f"Production corpus synchronization failed: {type(exc).__name__}: {exc}")
 
 
-@app.on_event("startup")
-def synchronize_approved_corpus() -> None:
-    if _production_corpus_needs_sync():
-        Thread(target=_sync_production_corpus, name="corpus-sync", daemon=True).start()
-
-
 @app.middleware("http")
 async def security_and_rate_limit(request: Request, call_next):
-    if request.url.path == "/api/chat":
+    path = request.scope.get("path", "")
+    content_length = request.headers.get("content-length")
+    if content_length:
+        try:
+            if int(content_length) > MAX_REQUEST_BODY_BYTES:
+                response = JSONResponse(
+                    status_code=413, content={"detail": "Request body is too large."}
+                )
+            else:
+                response = None
+        except ValueError:
+            response = JSONResponse(
+                status_code=400, content={"detail": "Invalid Content-Length header."}
+            )
+    else:
+        response = None
+    if response is None and path == "/api/chat":
         key = request.client.host if request.client else "unknown"
         now = time.monotonic()
         window = request_windows[key]
         while window and window[0] < now - 60:
             window.popleft()
         if len(window) >= 20:
-            return JSONResponse(status_code=429, content={"detail": "Too many questions. Try again in one minute."})
-        window.append(now)
-    response = await call_next(request)
+            response = JSONResponse(
+                status_code=429,
+                content={"detail": "Too many questions. Try again in one minute."},
+            )
+        else:
+            window.append(now)
+    if response is None:
+        response = await call_next(request)
     response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
     response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
     response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
-    response.headers["Cache-Control"] = "no-store" if request.url.path.startswith("/api/") else "no-cache"
+    response.headers["Content-Security-Policy"] = (
+        "default-src 'none'; frame-ancestors 'none'; base-uri 'none'"
+    )
+    if settings.environment == "production":
+        response.headers["Strict-Transport-Security"] = (
+            "max-age=31536000; includeSubDomains"
+        )
+    response.headers["Cache-Control"] = (
+        "no-store" if path.startswith("/api/") else "no-cache"
+    )
     return response
 
 
 def require_admin(x_admin_key: str | None = Header(default=None)) -> None:
     if not settings.admin_api_key or x_admin_key != settings.admin_api_key:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid admin key")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid admin key"
+        )
 
 
 @app.exception_handler(Exception)
 async def unhandled_error(_: Request, exc: Exception):
-    return JSONResponse(status_code=500, content={"detail": "The service could not complete this request safely."})
+    return JSONResponse(
+        status_code=500,
+        content={"detail": "The service could not complete this request safely."},
+    )
 
 
 @app.get("/", include_in_schema=False)
@@ -102,7 +150,19 @@ def health(db: Session = Depends(get_db)):
     try:
         db.execute(text("SELECT 1"))
         document_count = db.scalar(select(func.count(Document.id))) or 0
-        return {"status": "ok", "database": "ok", "jurisdiction": "Nebraska", "corpus_documents": document_count, "model": settings.openai_chat_model}
+        if settings.environment == "production" and document_count < 1:
+            raise HTTPException(status_code=503, detail="Authoritative corpus unavailable")
+        if settings.environment == "production" and not settings.openai_api_key:
+            raise HTTPException(status_code=503, detail="Answer service unavailable")
+        return {
+            "status": "ok",
+            "database": "ok",
+            "jurisdiction": "Nebraska",
+            "corpus_documents": document_count,
+            "model": settings.openai_chat_model,
+        }
+    except HTTPException:
+        raise
     except Exception:
         raise HTTPException(status_code=503, detail="Database unavailable")
 
@@ -110,7 +170,10 @@ def health(db: Session = Depends(get_db)):
 @app.post("/api/chat", response_model=ChatResponse)
 def chat(request: ChatRequest, db: Session = Depends(get_db)):
     if len(request.question) > settings.max_question_chars:
-        raise HTTPException(status_code=422, detail=f"Question must be under {settings.max_question_chars} characters.")
+        raise HTTPException(
+            status_code=422,
+            detail=f"Question must be under {settings.max_question_chars} characters.",
+        )
     try:
         return answer_question(db, request)
     except RuntimeError as exc:
@@ -119,15 +182,30 @@ def chat(request: ChatRequest, db: Session = Depends(get_db)):
 
 @app.get("/api/sources", response_model=list[SourceResponse])
 def sources(db: Session = Depends(get_db)):
-    documents = db.scalars(select(Document).where(Document.status == "active").order_by(Document.source_tier, Document.agency, Document.title)).all()
+    documents = db.scalars(
+        select(Document)
+        .where(Document.status == "active")
+        .order_by(Document.source_tier, Document.agency, Document.title)
+    ).all()
     return [
         SourceResponse(
-            id=doc.id, title=doc.title, agency=doc.agency, url=doc.url, topic=doc.topic,
-            source_tier=doc.source_tier, jurisdiction=doc.jurisdiction, status=doc.status,
-            publication_date=doc.publication_date.isoformat() if doc.publication_date else None,
-            effective_date=doc.effective_date.isoformat() if doc.effective_date else None,
+            id=doc.id,
+            title=doc.title,
+            agency=doc.agency,
+            url=doc.url,
+            topic=doc.topic,
+            source_tier=doc.source_tier,
+            jurisdiction=doc.jurisdiction,
+            status=doc.status,
+            publication_date=doc.publication_date.isoformat()
+            if doc.publication_date
+            else None,
+            effective_date=doc.effective_date.isoformat()
+            if doc.effective_date
+            else None,
             retrieved_at=doc.retrieved_at,
-        ) for doc in documents
+        )
+        for doc in documents
     ]
 
 
@@ -142,20 +220,42 @@ def source_updates(db: Session = Depends(get_db)):
     ).all()
     updates: list[SourceUpdateResponse] = []
     for document in documents:
-        versions = sorted(document.versions, key=lambda version: version.retrieved_at, reverse=True)
+        versions = sorted(
+            document.versions, key=lambda version: version.retrieved_at, reverse=True
+        )
         if len(versions) < 2:
             continue
-        updates.append(SourceUpdateResponse(
-            document_id=document.id, title=document.title, agency=document.agency, url=document.url,
-            version_count=len(versions), latest_retrieved_at=versions[0].retrieved_at,
-            previous_retrieved_at=versions[1].retrieved_at,
-        ))
+        updates.append(
+            SourceUpdateResponse(
+                document_id=document.id,
+                title=document.title,
+                agency=document.agency,
+                url=document.url,
+                version_count=len(versions),
+                latest_retrieved_at=versions[0].retrieved_at,
+                previous_retrieved_at=versions[1].retrieved_at,
+            )
+        )
     return updates[:25]
 
 
 @app.post("/api/feedback", response_model=SavedResponse, status_code=201)
 def feedback(request: FeedbackRequest, db: Session = Depends(get_db)):
-    record = Feedback(answer_id=request.answer_id, rating=request.rating, comment=request.comment)
+    existing = db.scalar(
+        select(Feedback)
+        .where(
+            Feedback.answer_id == request.answer_id, Feedback.rating == request.rating
+        )
+        .order_by(Feedback.created_at.desc())
+    )
+    if existing is not None:
+        if request.comment:
+            existing.comment = request.comment
+            db.commit()
+        return SavedResponse(id=existing.id)
+    record = Feedback(
+        answer_id=request.answer_id, rating=request.rating, comment=request.comment
+    )
     db.add(record)
     db.commit()
     return SavedResponse(id=record.id)
@@ -163,19 +263,40 @@ def feedback(request: FeedbackRequest, db: Session = Depends(get_db)):
 
 @app.post("/api/bookmarks", response_model=SavedResponse, status_code=201)
 def bookmarks(request: BookmarkRequest, db: Session = Depends(get_db)):
+    existing = db.scalar(
+        select(Bookmark).where(Bookmark.answer_id == request.answer_id)
+    )
+    if existing is not None:
+        return SavedResponse(id=existing.id)
     record = Bookmark(answer_id=request.answer_id)
     db.add(record)
     db.commit()
     return SavedResponse(id=record.id)
 
 
-@app.get("/api/conversations/{conversation_id}", response_model=ConversationResponse)
+@app.get(
+    "/api/conversations/{conversation_id}",
+    response_model=ConversationResponse,
+    dependencies=[Depends(require_admin)],
+)
 def conversation(conversation_id: str, db: Session = Depends(get_db)):
     record = db.get(Conversation, conversation_id)
     if record is None:
         raise HTTPException(status_code=404, detail="Conversation not found")
-    messages = db.scalars(select(Message).where(Message.conversation_id == conversation_id).order_by(Message.created_at)).all()
-    return ConversationResponse(id=conversation_id, messages=[ConversationMessageResponse(role=item.role, content=item.content, created_at=item.created_at) for item in messages])
+    messages = db.scalars(
+        select(Message)
+        .where(Message.conversation_id == conversation_id)
+        .order_by(Message.created_at)
+    ).all()
+    return ConversationResponse(
+        id=conversation_id,
+        messages=[
+            ConversationMessageResponse(
+                role=item.role, content=item.content, created_at=item.created_at
+            )
+            for item in messages
+        ],
+    )
 
 
 @app.get("/api/admin/summary", dependencies=[Depends(require_admin)])
@@ -184,20 +305,54 @@ def admin_summary(db: Session = Depends(get_db)):
     unresolved = db.execute(
         select(QueryLog.question, func.count(QueryLog.id).label("count"))
         .where(QueryLog.created_at >= since, QueryLog.evidence_status == "insufficient")
-        .group_by(QueryLog.question).order_by(func.count(QueryLog.id).desc()).limit(10)
+        .group_by(QueryLog.question)
+        .order_by(func.count(QueryLog.id).desc())
+        .limit(10)
     ).all()
     return {
         "corpus": {
             "documents": db.scalar(select(func.count(Document.id))) or 0,
             "chunks": db.scalar(select(func.count(Chunk.id))) or 0,
-            "outdated_documents": db.scalar(select(func.count(Document.id)).where(Document.retrieved_at < datetime.now(timezone.utc) - timedelta(days=45))) or 0,
+            "outdated_documents": db.scalar(
+                select(func.count(Document.id)).where(
+                    Document.retrieved_at
+                    < datetime.now(timezone.utc) - timedelta(days=45)
+                )
+            )
+            or 0,
         },
         "last_7_days": {
-            "questions": db.scalar(select(func.count(QueryLog.id)).where(QueryLog.created_at >= since)) or 0,
-            "failed_questions": db.scalar(select(func.count(QueryLog.id)).where(QueryLog.created_at >= since, QueryLog.error_code.is_not(None))) or 0,
-            "insufficient_answers": db.scalar(select(func.count(QueryLog.id)).where(QueryLog.created_at >= since, QueryLog.evidence_status == "insufficient")) or 0,
-            "helpful": db.scalar(select(func.count(Feedback.id)).where(Feedback.created_at >= since, Feedback.rating == "helpful")) or 0,
-            "not_helpful": db.scalar(select(func.count(Feedback.id)).where(Feedback.created_at >= since, Feedback.rating == "not_helpful")) or 0,
+            "questions": db.scalar(
+                select(func.count(QueryLog.id)).where(QueryLog.created_at >= since)
+            )
+            or 0,
+            "failed_questions": db.scalar(
+                select(func.count(QueryLog.id)).where(
+                    QueryLog.created_at >= since, QueryLog.error_code.is_not(None)
+                )
+            )
+            or 0,
+            "insufficient_answers": db.scalar(
+                select(func.count(QueryLog.id)).where(
+                    QueryLog.created_at >= since,
+                    QueryLog.evidence_status == "insufficient",
+                )
+            )
+            or 0,
+            "helpful": db.scalar(
+                select(func.count(Feedback.id)).where(
+                    Feedback.created_at >= since, Feedback.rating == "helpful"
+                )
+            )
+            or 0,
+            "not_helpful": db.scalar(
+                select(func.count(Feedback.id)).where(
+                    Feedback.created_at >= since, Feedback.rating == "not_helpful"
+                )
+            )
+            or 0,
         },
-        "top_evidence_gaps": [{"question": question, "count": count} for question, count in unresolved],
+        "top_evidence_gaps": [
+            {"question": question, "count": count} for question, count in unresolved
+        ],
     }

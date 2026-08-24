@@ -15,11 +15,16 @@ export async function askCopilot(payload: {
   topics?: string[];
   farm_context?: FarmContext;
 }): Promise<CopilotAnswer> {
-  const response = await fetch(`${API_BASE_URL}/api/chat`, {
-    method: "POST",
-    headers: headers(),
-    body: JSON.stringify(payload),
-  });
+  let response: Response;
+  try {
+    response = await fetch(`${API_BASE_URL}/api/chat`, {
+      method: "POST",
+      headers: headers(),
+      body: JSON.stringify(payload),
+    });
+  } catch {
+    throw new Error("The copilot could not reach the source service. Check your connection and try again.");
+  }
   if (!response.ok) {
     const body = await response.json().catch(() => ({}));
     throw new Error(body.detail || "The copilot could not answer right now.");
