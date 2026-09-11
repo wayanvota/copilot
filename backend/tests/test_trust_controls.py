@@ -65,6 +65,8 @@ def test_chunk_ids_are_removed_from_visible_claim_text():
         _clean_claim_text("A cited rule applies [S1, S2].") == "A cited rule applies."
     )
     assert _clean_claim_text("A cited rule applies.【S8】") == "A cited rule applies."
+    empty_artifacts = '[""' + ',""' * 2_000 + "]},{"
+    assert _clean_claim_text(f"A cited rule applies. {empty_artifacts}") == "A cited rule applies."
 
 
 def test_internal_source_aliases_are_removed_from_all_visible_answer_fields():

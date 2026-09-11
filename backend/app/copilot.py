@@ -173,7 +173,7 @@ def _clean_claim_text(text: str) -> str:
     cleaned = _CITATION_ARTIFACT.sub("", text)
     cleaned = _RAW_CHUNK_ID.sub("", cleaned)
     cleaned = _SOURCE_ALIAS_ARTIFACT.sub("", cleaned)
-    cleaned = re.sub(r"\[\s*(?:\"\"\s*,?\s*)+\]\s*\}?,?\s*\{?", "", cleaned)
+    cleaned = re.sub(r"\[(?:\s*\"\"\s*,)*\s*\"\"\s*\]\s*\}?,?\s*\{?", "", cleaned)
     cleaned = re.sub(r"(?:\[\s*\]|【\s*】)", "", cleaned)
     cleaned = cleaned.replace("},{", "")
     return re.sub(r"\s+([,.;:])", r"\1", cleaned).strip()
