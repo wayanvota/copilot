@@ -48,7 +48,7 @@ Status: passed locally on 2026-09-11 with Python 3.12 and Node 22.16.0.
 - Frontend dependency audit: 0 vulnerabilities at all severities
 - Python dependency consistency check: passed
 - Optional OpenAI smoke using the authorized local key: structured evidence boundary passed
-- GitHub Actions: pending after branch push
+- GitHub Actions: passed in run 34663267513
 
 Reproduce with:
 
