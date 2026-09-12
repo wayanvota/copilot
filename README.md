@@ -50,6 +50,22 @@ npm run dev
 
 No API key is shipped to the browser. Set `NEXT_PUBLIC_API_BASE_URL` to the Render API URL before the static production build.
 
+## End-to-end tests
+
+The Playwright harness builds the production static frontend and runs it against
+the real FastAPI application with deterministic cited retrieval and model
+fixtures. It covers exactly 10 user-behavior and 10 adversarial categories. The
+API schema, isolated database, security middleware, feedback, bookmarks, source
+status, rate limiting, and admin boundary remain real.
+
+Run the commands in `E2E-TEST-REPORT.md` to reproduce the complete local gate.
+GitHub Actions uses Node 22.16.0 and Python 3.12.11. The deterministic gate reads
+no service credentials.
+
+An explicitly authorized local key can run the separate one-request provider
+smoke with `PYTHONPATH=backend python backend/evals/openai_smoke.py`. The smoke is
+excluded from CI and never writes the credential or sends it to the browser.
+
 ## Corpus migration and updates
 
 After approving embedding charges, use the sync mode when changing jurisdictions:
