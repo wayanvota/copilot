@@ -8,7 +8,8 @@ from sqlalchemy.orm import sessionmaker
 
 from app.database import get_db
 from app.ingest import _allowed_url, read_manual_source
-from app.main import MAX_REQUEST_BODY_BYTES, app, request_windows
+from app.main import MAX_REQUEST_BODY_BYTES, app, request_windows, check_database_health
+from fastapi import HTTPException
 from app.models import Base, Bookmark, Conversation, Feedback, Message
 
 
@@ -214,12 +215,14 @@ def test_no_cookie_session_is_created_for_public_api(isolated_client):
 
 
 def test_production_readiness_rejects_an_empty_corpus(isolated_client, monkeypatch):
-    client, _ = isolated_client
+    client, Session = isolated_client
     monkeypatch.setattr("app.main.settings.environment", "production")
     monkeypatch.setattr("app.main.settings.openai_api_key", "configured-for-test")
-    response = client.get("/healthz")
-    assert response.status_code == 503
-    assert response.json()["detail"] == "Authoritative corpus unavailable"
+    assert client.get("/healthz").status_code == 200
+    with Session() as db, pytest.raises(HTTPException) as error:
+        check_database_health(db)
+    assert error.value.status_code == 503
+    assert error.value.detail == "Authoritative corpus unavailable"
 
 
 def test_open_redirect_payloads_do_not_change_fixed_destination(isolated_client):

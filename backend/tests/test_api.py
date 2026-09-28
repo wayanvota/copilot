@@ -7,7 +7,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 from app.database import get_db
-from app.main import app
+from app.main import app, check_database_health
 from app.models import Base, Document, DocumentVersion
 
 
@@ -73,8 +73,9 @@ def test_health_and_sources(tmp_path: Path):
         client = TestClient(app)
         health = client.get("/healthz")
         assert health.status_code == 200
-        assert health.json()["corpus_documents"] == 1
-        assert health.json()["jurisdiction"] == "Nebraska"
+        assert health.json()["service"] == "nebraska-pork-copilot"
+        with TestingSession() as db:
+            assert check_database_health(db)["corpus_documents"] == 1
         sources = client.get("/api/sources")
         assert sources.status_code == 200
         assert sources.json()[0]["agency"] == "Nebraska DWEE"
