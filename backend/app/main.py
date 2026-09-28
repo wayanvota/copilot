@@ -1,19 +1,22 @@
+import asyncio
 import time
 from collections import defaultdict, deque
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, suppress
 from datetime import datetime, timedelta, timezone
 from threading import Thread
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, RedirectResponse
-from sqlalchemy import func, select, text
+from sqlalchemy import create_engine, func, select, text
+from sqlalchemy.pool import NullPool
 from sqlalchemy.orm import Session, selectinload
 
 from .config import settings
 from .copilot import answer_question
 from .database import SessionLocal, get_db
 from .ingest import run as run_ingestion
+from .health import DatabaseMonitor
 from .models import Bookmark, Chunk, Conversation, Document, Feedback, Message, QueryLog
 from .schemas import (
     BookmarkRequest,
@@ -33,7 +36,16 @@ from .source_registry import APPROVED_SOURCES
 async def lifespan(_: FastAPI):
     if _production_corpus_needs_sync():
         Thread(target=_sync_production_corpus, name="corpus-sync", daemon=True).start()
-    yield
+    monitor_task = None
+    if settings.environment == "production":
+        monitor_task = asyncio.create_task(database_monitor.run())
+    try:
+        yield
+    finally:
+        if monitor_task:
+            monitor_task.cancel()
+            with suppress(asyncio.CancelledError):
+                await monitor_task
 
 
 app = FastAPI(
@@ -145,8 +157,7 @@ def root():
     return RedirectResponse(url="https://wayan.com/copilot/", status_code=307)
 
 
-@app.get("/healthz")
-def health(db: Session = Depends(get_db)):
+def check_database_health(db: Session):
     try:
         db.execute(text("SELECT 1"))
         document_count = db.scalar(select(func.count(Document.id))) or 0
@@ -165,6 +176,40 @@ def health(db: Session = Depends(get_db)):
         raise
     except Exception:
         raise HTTPException(status_code=503, detail="Database unavailable")
+
+
+def _daily_database_check():
+    # A dedicated, bounded connection closes after the check instead of remaining
+    # in the application's pool. It performs no schema or corpus modifications.
+    url = settings.sqlalchemy_database_url
+    connect_args = {}
+    if url.startswith("postgresql"):
+        connect_args = {
+            "connect_timeout": 10,
+            "application_name": "daily-database-health",
+        }
+    check_engine = create_engine(url, poolclass=NullPool, connect_args=connect_args)
+    try:
+        with Session(check_engine) as db:
+            if url.startswith("postgresql"):
+                db.execute(text("SET LOCAL statement_timeout = 10000"))
+            return check_database_health(db)
+    finally:
+        check_engine.dispose()
+
+
+database_monitor = DatabaseMonitor(_daily_database_check)
+
+
+@app.get("/healthz")
+def health():
+    return {"status": "ok", "service": "nebraska-pork-copilot"}
+
+
+@app.get("/healthz/database")
+def database_health():
+    result = database_monitor.snapshot()
+    return JSONResponse(status_code=200 if result["ok"] is True else 503, content=result)
 
 
 @app.post("/api/chat", response_model=ChatResponse)
